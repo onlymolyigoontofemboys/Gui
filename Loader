@@ -17,24 +17,30 @@ do
 end
 
 local C = {
-    bg        = Color3.fromRGB(16, 16, 18),
-    panel     = Color3.fromRGB(22, 22, 24),
-    item      = Color3.fromRGB(26, 26, 28),
-    itemHov   = Color3.fromRGB(30, 30, 32),
-    itemSel   = Color3.fromRGB(22, 34, 24),
-    bor       = Color3.fromRGB(48, 48, 52),
-    borLight  = Color3.fromRGB(62, 62, 66),
-    acc       = Color3.fromRGB(72, 196, 100),
-    accGlow   = Color3.fromRGB(50, 140, 70),
-    accDark   = Color3.fromRGB(30, 70, 40),
-    txt       = Color3.fromRGB(188, 188, 192),
-    txtD      = Color3.fromRGB(88, 88, 94),
-    txtH      = Color3.fromRGB(224, 224, 228),
+    bg        = Color3.fromRGB(24, 24, 24),
+    panel     = Color3.fromRGB(18, 18, 18),
+    item      = Color3.fromRGB(30, 30, 30),
+    itemHov   = Color3.fromRGB(36, 36, 36),
+    itemSel   = Color3.fromRGB(55, 10, 10),
+
+    bor       = Color3.fromRGB(52, 52, 52),
+    borLight  = Color3.fromRGB(72, 72, 72),
+
+    acc       = Color3.fromRGB(200, 40, 40),
+    accGlow   = Color3.fromRGB(230, 75, 75),
+    accDark   = Color3.fromRGB(55, 10, 10),
+
+    txt       = Color3.fromRGB(200, 200, 200),
+    txtD      = Color3.fromRGB(80, 80, 80),
+    txtH      = Color3.fromRGB(235, 235, 235),
+
     yellow    = Color3.fromRGB(236, 190, 48),
     red       = Color3.fromRGB(210, 65, 65),
-    redDark   = Color3.fromRGB(38, 14, 14),
+    redDark   = Color3.fromRGB(55, 10, 10),
+
     btnBg     = Color3.fromRGB(30, 30, 32),
     btnHov    = Color3.fromRGB(38, 38, 42),
+
     black     = Color3.fromRGB(0, 0, 0),
 }
 
