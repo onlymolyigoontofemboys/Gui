@@ -1,0 +1,431 @@
+local TS  = game:GetService("TweenService")
+local UIS = game:GetService("UserInputService")
+local CG  = game:GetService("CoreGui")
+
+local FAST = TweenInfo.new(0.15, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
+local MED  = TweenInfo.new(0.25, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
+
+local BG       = Color3.fromRGB(18, 18, 20)
+local BG_PANEL = Color3.fromRGB(24, 24, 26)
+local BG_ITEM  = Color3.fromRGB(30, 30, 32)
+local BG_SEL   = Color3.fromRGB(36, 36, 38)
+local BG_BTN   = Color3.fromRGB(38, 38, 40)
+local ACC      = Color3.fromRGB(204, 51, 51)
+local ACC_LT   = Color3.fromRGB(230, 80, 80)
+local BOR      = Color3.fromRGB(48, 48, 52)
+local TXT      = Color3.fromRGB(200, 200, 204)
+local TXT_D    = Color3.fromRGB(90, 90, 95)
+local TXT_H    = Color3.fromRGB(232, 232, 234)
+local GREEN    = Color3.fromRGB(80, 210, 120)
+local YELLOW   = Color3.fromRGB(255, 200, 60)
+local WHITE    = Color3.fromRGB(255, 255, 255)
+
+local FONT
+do
+    local ok = pcall(function()
+        local aid = "SmallestPixel.ttf"
+        if not isfile(aid) then
+            writefile(aid, game:HttpGet(
+                "https://raw.githubusercontent.com/onlymolyigoontofemboys/BETA/main/smallest_pixel-7.ttf"
+            ))
+        end
+        FONT = Font.new(getcustomasset(aid))
+    end)
+    if not ok then FONT = Font.new("rbxasset://fonts/families/RobotoMono.json") end
+end
+
+local function tw(o, p, ti) TS:Create(o, ti or FAST, p):Play() end
+
+local function new(cl, props, parent)
+    local o = Instance.new(cl)
+    for k, v in pairs(props) do o[k] = v end
+    if parent then o.Parent = parent end
+    return o
+end
+
+local function corner(p, r)
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, r or 3)
+    c.Parent = p
+end
+
+local function stroke(p, col, t)
+    local s = Instance.new("UIStroke")
+    s.Color = col or BOR; s.Thickness = t or 1
+    s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    s.Parent = p; return s
+end
+
+local function pad(p, t, b, l, r)
+    local u = Instance.new("UIPadding")
+    u.PaddingTop    = UDim.new(0, t or 0)
+    u.PaddingBottom = UDim.new(0, b or 0)
+    u.PaddingLeft   = UDim.new(0, l or 0)
+    u.PaddingRight  = UDim.new(0, r or 0)
+    u.Parent = p
+end
+
+local function vlist(p, gap)
+    local l = Instance.new("UIListLayout")
+    l.FillDirection = Enum.FillDirection.Vertical
+    l.SortOrder     = Enum.SortOrder.LayoutOrder
+    l.Padding       = UDim.new(0, gap or 0)
+    l.Parent = p; return l
+end
+
+local Loader = {}
+
+function Loader.CreateWindow(config)
+    config = config or {}
+    local title    = config.title    or "Loader"
+    local subtitle = config.subtitle or ""
+    local warning  = config.warning  or ""
+
+    local old = CG:FindFirstChild("LoaderUI")
+    if old then old:Destroy() end
+
+    local sg = new("ScreenGui", {
+        Name="LoaderUI", ResetOnSpawn=false,
+        ZIndexBehavior=Enum.ZIndexBehavior.Sibling,
+    }, CG)
+
+    local W, H = 520, 340
+
+    local win = new("Frame", {
+        Size=UDim2.new(0,W,0,H),
+        Position=UDim2.new(0.5,-W/2,0.5,-H/2),
+        BackgroundColor3=BG, BorderSizePixel=0,
+        ClipsDescendants=false,
+    }, sg)
+    corner(win, 4); stroke(win, BOR, 1)
+
+    do
+        local drag=false; local ds,sp=nil,nil
+        win.InputBegan:Connect(function(i)
+            if i.UserInputType==Enum.UserInputType.MouseButton1 then
+                drag=true; ds=i.Position; sp=win.Position
+            end
+        end)
+        UIS.InputChanged:Connect(function(i)
+            if drag and i.UserInputType==Enum.UserInputType.MouseMovement then
+                local d=i.Position-ds
+                win.Position=UDim2.new(sp.X.Scale,sp.X.Offset+d.X,sp.Y.Scale,sp.Y.Offset+d.Y)
+            end
+        end)
+        UIS.InputEnded:Connect(function(i)
+            if i.UserInputType==Enum.UserInputType.MouseButton1 then drag=false end
+        end)
+    end
+
+    local titleH = 32
+    local titleBar = new("Frame", {
+        Size=UDim2.new(1,0,0,titleH),
+        BackgroundColor3=Color3.fromRGB(14,14,16),
+        BorderSizePixel=0, ZIndex=2,
+    }, win)
+    corner(titleBar, 4)
+    new("Frame", {
+        Size=UDim2.new(1,0,0,4), Position=UDim2.new(0,0,1,-4),
+        BackgroundColor3=Color3.fromRGB(14,14,16), BorderSizePixel=0, ZIndex=2,
+    }, titleBar)
+
+    new("Frame", {
+        Size=UDim2.new(1,0,0,1), Position=UDim2.new(0,0,1,-1),
+        BackgroundColor3=BOR, BorderSizePixel=0, ZIndex=3,
+    }, titleBar)
+
+    new("TextLabel", {
+        Size=UDim2.new(1,-16,1,0), Position=UDim2.new(0,12,0,0),
+        BackgroundTransparency=1,
+        Text=title:upper(),
+        TextColor3=TXT_H, FontFace=FONT, TextSize=14,
+        TextXAlignment=Enum.TextXAlignment.Left, ZIndex=3,
+    }, titleBar)
+
+    local body = new("Frame", {
+        Size=UDim2.new(1,0,1,-titleH),
+        Position=UDim2.new(0,0,0,titleH),
+        BackgroundTransparency=1, ClipsDescendants=true,
+    }, win)
+
+    local LEFT_W  = 280
+    local RIGHT_W = W - LEFT_W - 1
+
+    local leftPanel = new("Frame", {
+        Size=UDim2.new(0,LEFT_W,1,0),
+        BackgroundColor3=BG_PANEL, BorderSizePixel=0,
+    }, body)
+
+    new("Frame", {
+        Size=UDim2.new(0,1,1,0), Position=UDim2.new(0,LEFT_W,0,0),
+        BackgroundColor3=BOR, BorderSizePixel=0,
+    }, body)
+
+    local rightPanel = new("Frame", {
+        Size=UDim2.new(0,RIGHT_W,1,0),
+        Position=UDim2.new(0,LEFT_W+1,0,0),
+        BackgroundColor3=BG_PANEL, BorderSizePixel=0,
+    }, body)
+
+    local BOTTOM_H = 110
+    local scriptList = new("ScrollingFrame", {
+        Size=UDim2.new(1,0,1,-BOTTOM_H-1),
+        BackgroundTransparency=1, BorderSizePixel=0,
+        ScrollBarThickness=2, ScrollBarImageColor3=BOR,
+        CanvasSize=UDim2.new(0,0,0,0), AutomaticCanvasSize=Enum.AutomaticSize.Y,
+        ClipsDescendants=true,
+    }, leftPanel)
+
+    new("Frame", {
+        Size=UDim2.new(1,0,0,1),
+        Position=UDim2.new(0,0,1,-BOTTOM_H-1),
+        BackgroundColor3=BOR, BorderSizePixel=0,
+    }, leftPanel)
+
+    local statusPanel = new("Frame", {
+        Size=UDim2.new(1,0,0,BOTTOM_H),
+        Position=UDim2.new(0,0,1,-BOTTOM_H),
+        BackgroundColor3=BG, BorderSizePixel=0,
+    }, leftPanel)
+    pad(statusPanel,8,8,10,10)
+
+    local statusLbl = new("TextLabel", {
+        Size=UDim2.new(1,0,0,13),
+        BackgroundTransparency=1,
+        Text="STATUS",
+        TextColor3=TXT_D, FontFace=FONT, TextSize=9,
+        TextXAlignment=Enum.TextXAlignment.Left, ZIndex=2,
+    }, statusPanel)
+
+    local statusLines = new("Frame", {
+        Size=UDim2.new(1,0,1,-17),
+        Position=UDim2.new(0,0,0,17),
+        BackgroundTransparency=1,
+        AutomaticSize=Enum.AutomaticSize.Y,
+    }, statusPanel)
+    vlist(statusLines, 2)
+
+    local function addStatusLine(text, col)
+        local lbl = new("TextLabel", {
+            Size=UDim2.new(1,0,0,13),
+            BackgroundTransparency=1,
+            Text=text,
+            TextColor3=col or TXT,
+            FontFace=FONT, TextSize=11,
+            TextXAlignment=Enum.TextXAlignment.Left,
+            TextWrapped=true, ZIndex=2,
+        }, statusLines)
+        return lbl
+    end
+
+    local optTitle = new("TextLabel", {
+        Size=UDim2.new(1,-16,0,28),
+        Position=UDim2.new(0,12,0,0),
+        BackgroundTransparency=1,
+        Text="Options",
+        TextColor3=TXT_H, FontFace=FONT, TextSize=13,
+        TextXAlignment=Enum.TextXAlignment.Left, ZIndex=2,
+    }, rightPanel)
+
+    new("Frame", {
+        Size=UDim2.new(1,-24,0,1),
+        Position=UDim2.new(0,12,0,28),
+        BackgroundColor3=BOR, BorderSizePixel=0,
+    }, rightPanel)
+
+    local optArea = new("Frame", {
+        Size=UDim2.new(1,-24,1,-46),
+        Position=UDim2.new(0,12,0,38),
+        BackgroundTransparency=1,
+        AutomaticSize=Enum.AutomaticSize.Y,
+    }, rightPanel)
+    vlist(optArea, 8)
+
+    local function makeBtn(text, danger, parent)
+        local btn = new("TextButton", {
+            Size=UDim2.new(1,0,0,30),
+            BackgroundColor3=BG_BTN, BorderSizePixel=0,
+            Text=text, TextColor3=TXT,
+            FontFace=FONT, TextSize=12,
+            AutoButtonColor=false, ZIndex=3,
+        }, parent)
+        corner(btn,3); stroke(btn,BOR,1)
+        btn.MouseEnter:Connect(function()
+            if danger then
+                tw(btn,{TextColor3=ACC_LT,BackgroundColor3=Color3.fromRGB(42,14,14)})
+            else
+                tw(btn,{TextColor3=TXT_H,BackgroundColor3=Color3.fromRGB(44,44,48)})
+            end
+        end)
+        btn.MouseLeave:Connect(function()
+            tw(btn,{TextColor3=TXT,BackgroundColor3=BG_BTN})
+        end)
+        btn.MouseButton1Click:Connect(function()
+            tw(btn,{BackgroundColor3=danger and Color3.fromRGB(55,14,14) or Color3.fromRGB(52,52,56)})
+            task.delay(0.12,function() tw(btn,{BackgroundColor3=BG_BTN}) end)
+        end)
+        return btn
+    end
+
+    local loadBtn = makeBtn("Load", false, optArea)
+    local exitBtn = makeBtn("Exit", true,  optArea)
+
+    vlist(scriptList, 0)
+
+    local selected = nil
+    local scripts  = {}
+    local Window   = {}
+
+    function Window:AddScript(def)
+        local name    = def.name    or "Script"
+        local updated = def.game    or ""
+        local icon    = def.icon    or nil
+        local onLoad  = def.onLoad  or nil
+
+        local ITEM_H = 54
+        local item = new("TextButton", {
+            Size=UDim2.new(1,0,0,ITEM_H),
+            BackgroundColor3=BG_ITEM, BorderSizePixel=0,
+            Text="", AutoButtonColor=false, ZIndex=2,
+        }, scriptList)
+        stroke(item, Color3.fromRGB(36,36,40), 1)
+
+        new("Frame", {
+            Size=UDim2.new(1,0,0,1),
+            Position=UDim2.new(0,0,1,-1),
+            BackgroundColor3=BOR, BorderSizePixel=0, ZIndex=3,
+        }, item)
+
+        local ICON_S = 36
+        if icon then
+            local img = new("ImageLabel", {
+                Size=UDim2.new(0,ICON_S,0,ICON_S),
+                Position=UDim2.new(0,8,0.5,-ICON_S/2),
+                BackgroundColor3=Color3.fromRGB(40,40,42),
+                Image=icon, BorderSizePixel=0, ZIndex=3,
+            }, item)
+            corner(img, 4)
+        else
+            local placeholder = new("Frame", {
+                Size=UDim2.new(0,ICON_S,0,ICON_S),
+                Position=UDim2.new(0,8,0.5,-ICON_S/2),
+                BackgroundColor3=Color3.fromRGB(40,40,42),
+                BorderSizePixel=0, ZIndex=3,
+            }, item)
+            corner(placeholder, 4)
+            stroke(placeholder, Color3.fromRGB(50,50,54), 1)
+            new("TextLabel", {
+                Size=UDim2.new(1,0,1,0),
+                BackgroundTransparency=1,
+                Text=string.sub(name,1,1):upper(),
+                TextColor3=TXT_D, FontFace=FONT, TextSize=16,
+                ZIndex=4,
+            }, placeholder)
+        end
+
+        local textX = 8 + ICON_S + 10
+        new("TextLabel", {
+            Size=UDim2.new(1,-textX-8,0,18),
+            Position=UDim2.new(0,textX,0,10),
+            BackgroundTransparency=1,
+            Text=name, TextColor3=GREEN,
+            FontFace=FONT, TextSize=13,
+            TextXAlignment=Enum.TextXAlignment.Left, ZIndex=3,
+        }, item)
+        new("TextLabel", {
+            Size=UDim2.new(1,-textX-8,0,14),
+            Position=UDim2.new(0,textX,0,28),
+            BackgroundTransparency=1,
+            Text="Updated "..updated,
+            TextColor3=TXT_D, FontFace=FONT, TextSize=10,
+            TextXAlignment=Enum.TextXAlignment.Left, ZIndex=3,
+        }, item)
+
+        local entry = {item=item, onLoad=onLoad}
+        table.insert(scripts, entry)
+
+        local function selectItem()
+            if selected and selected.item ~= item then
+                tw(selected.item,{BackgroundColor3=BG_ITEM})
+            end
+            selected = entry
+            tw(item,{BackgroundColor3=BG_SEL})
+        end
+
+        item.MouseEnter:Connect(function()
+            if selected~=entry then
+                tw(item,{BackgroundColor3=Color3.fromRGB(33,33,36)})
+            end
+        end)
+        item.MouseLeave:Connect(function()
+            if selected~=entry then
+                tw(item,{BackgroundColor3=BG_ITEM})
+            end
+        end)
+        item.MouseButton1Click:Connect(function()
+            selectItem()
+        end)
+
+        if #scripts == 1 then selectItem() end
+    end
+
+    function Window:SetStatus(text)
+        for _, c in ipairs(statusLines:GetChildren()) do
+            if c:IsA("TextLabel") then c:Destroy() end
+        end
+        local lines = text:split("\n")
+        for _, line in ipairs(lines) do
+            local col = TXT
+            if line:lower():find("warning") or line:lower():find("caution") then
+                col = YELLOW
+            elseif line:lower():find("connected") or line:lower():find("success") then
+                col = GREEN
+            elseif line:lower():find("error") or line:lower():find("fail") then
+                col = ACC_LT
+            end
+            addStatusLine(line, col)
+        end
+    end
+
+    function Window:AddStatusLine(text, color)
+        addStatusLine(text, color)
+    end
+
+    function Window:OnLoad(cb)
+        loadBtn.MouseButton1Click:Connect(function()
+            if selected and selected.onLoad then
+                selected.onLoad()
+            end
+            if cb then cb(selected) end
+        end)
+    end
+
+    function Window:OnExit(cb)
+        exitBtn.MouseButton1Click:Connect(function()
+            if cb then cb() end
+            sg:Destroy()
+        end)
+    end
+
+    function Window:AddOption(text, danger, cb)
+        local btn = makeBtn(text, danger, optArea)
+        btn.MouseButton1Click:Connect(function()
+            if cb then cb(selected) end
+        end)
+    end
+
+    function Window:Destroy()
+        sg:Destroy()
+    end
+
+    if subtitle ~= "" or warning ~= "" then
+        task.defer(function()
+            if subtitle ~= "" then addStatusLine(subtitle, TXT) end
+            if warning  ~= "" then addStatusLine("Warning: "..warning, YELLOW) end
+        end)
+    end
+
+    return Window
+end
+
+return Loader
