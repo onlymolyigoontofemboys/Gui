@@ -1,9 +1,8 @@
 local TS  = game:GetService("TweenService")
 local UIS = game:GetService("UserInputService")
 local CG  = game:GetService("CoreGui")
-local RS  = game:GetService("RunService")
 
--- ── Font ──────────────────────────────────────────────────────────────────
+-- ── Font ─────────────────────────────────────────────────────────────────
 local FONT
 do
     local ok = pcall(function()
@@ -15,44 +14,63 @@ do
         end
         FONT = Font.new(getcustomasset(aid))
     end)
-    if not ok then FONT = Font.new("rbxasset://fonts/families/RobotoMono.json") end
+    if not ok then
+        FONT = Font.new("rbxasset://fonts/families/RobotoMono.json")
+    end
 end
 
 -- ── Palette ───────────────────────────────────────────────────────────────
 local C = {
-    bg       = Color3.fromRGB(26, 26, 28),
-    bgH      = Color3.fromRGB(20, 20, 22),
-    bgItem   = Color3.fromRGB(32, 32, 34),
-    bgIn     = Color3.fromRGB(18, 18, 20),
+    bg       = Color3.fromRGB(18, 18, 20),
+    bgH      = Color3.fromRGB(14, 14, 16),
+    bgItem   = Color3.fromRGB(26, 26, 28),
+    bgIn     = Color3.fromRGB(12, 12, 14),
+    panel    = Color3.fromRGB(22, 22, 24),
+
     acc      = Color3.fromRGB(204, 51, 51),
     accLt    = Color3.fromRGB(224, 85, 85),
     accDark  = Color3.fromRGB(45, 14, 14),
-    bor      = Color3.fromRGB(50, 50, 52),
-    borLt    = Color3.fromRGB(72, 72, 74),
-    txt      = Color3.fromRGB(200, 200, 204),
-    txtD     = Color3.fromRGB(95, 95, 99),
-    txtH     = Color3.fromRGB(232, 232, 234),
-    white    = Color3.fromRGB(255, 255, 255),
+    accGlow  = Color3.fromRGB(240, 100, 100),
+
+    bor      = Color3.fromRGB(42, 42, 46),
+    borLt    = Color3.fromRGB(65, 65, 70),
+
+    txt      = Color3.fromRGB(195, 195, 200),
+    txtD     = Color3.fromRGB(85, 85, 92),
+    txtH     = Color3.fromRGB(235, 235, 238),
+
+    green    = Color3.fromRGB(72, 210, 105),
+    greenDk  = Color3.fromRGB(18, 55, 26),
     yellow   = Color3.fromRGB(236, 190, 48),
-    red      = Color3.fromRGB(210, 65, 65),
-    green    = Color3.fromRGB(72, 200, 100),
+    yellowDk = Color3.fromRGB(52, 40, 10),
+    red      = Color3.fromRGB(215, 65, 65),
+    redDk    = Color3.fromRGB(45, 14, 14),
+    blue     = Color3.fromRGB(85, 160, 240),
+    blueDk   = Color3.fromRGB(15, 38, 65),
+    cyan     = Color3.fromRGB(80, 210, 210),
+    purple   = Color3.fromRGB(165, 100, 240),
+    orange   = Color3.fromRGB(240, 145, 50),
+
+    white    = Color3.fromRGB(255, 255, 255),
     black    = Color3.fromRGB(0, 0, 0),
-    panel    = Color3.fromRGB(22, 22, 24),
-    itemSel  = Color3.fromRGB(45, 14, 14),
-    itemHov  = Color3.fromRGB(38, 38, 40),
-    btnBg    = Color3.fromRGB(30, 30, 32),
-    btnHov   = Color3.fromRGB(40, 40, 44),
+    itemSel  = Color3.fromRGB(38, 12, 12),
+    itemHov  = Color3.fromRGB(32, 32, 34),
+    btnBg    = Color3.fromRGB(24, 24, 26),
+    btnHov   = Color3.fromRGB(36, 36, 40),
 }
 
 -- ── Tween helpers ─────────────────────────────────────────────────────────
 local function ease(t, s, d)
     return TweenInfo.new(t, s or Enum.EasingStyle.Quart, d or Enum.EasingDirection.Out)
 end
-local T_FAST   = ease(0.14)
-local T_MED    = ease(0.24)
-local T_SPRING = ease(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+local T_FAST   = ease(0.13)
+local T_MED    = ease(0.22)
+local T_SPRING = ease(0.32, Enum.EasingStyle.Back,  Enum.EasingDirection.Out)
+local T_SINE   = ease(0.25, Enum.EasingStyle.Sine,  Enum.EasingDirection.Out)
+local T_OUT    = ease(0.28, Enum.EasingStyle.Quart, Enum.EasingDirection.In)
 
 local function tw(obj, props, ti)
+    if not obj or not obj.Parent then return end
     TS:Create(obj, ti or T_FAST, props):Play()
 end
 
@@ -64,27 +82,38 @@ local function new(cl, props, parent)
     return o
 end
 local function corner(p, r)
-    local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, r or 3); c.Parent = p
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, r or 4)
+    c.Parent = p
+    return c
 end
 local function stroke(p, col, t)
     local s = Instance.new("UIStroke")
-    s.Color = col or C.bor; s.Thickness = t or 1
-    s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border; s.Parent = p; return s
+    s.Color = col or C.bor
+    s.Thickness = t or 1
+    s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    s.Parent = p
+    return s
 end
 local function pad(p, t, b, l, r)
     local u = Instance.new("UIPadding")
-    u.PaddingTop=UDim.new(0,t or 0); u.PaddingBottom=UDim.new(0,b or 0)
-    u.PaddingLeft=UDim.new(0,l or 0); u.PaddingRight=UDim.new(0,r or 0)
+    u.PaddingTop    = UDim.new(0, t or 0)
+    u.PaddingBottom = UDim.new(0, b or 0)
+    u.PaddingLeft   = UDim.new(0, l or 0)
+    u.PaddingRight  = UDim.new(0, r or 0)
     u.Parent = p
 end
 local function vlist(p, gap)
     local l = Instance.new("UIListLayout")
-    l.FillDirection=Enum.FillDirection.Vertical
-    l.SortOrder=Enum.SortOrder.LayoutOrder
-    l.Padding=UDim.new(0,gap or 0); l.Parent=p; return l
+    l.FillDirection = Enum.FillDirection.Vertical
+    l.SortOrder     = Enum.SortOrder.LayoutOrder
+    l.Padding       = UDim.new(0, gap or 0)
+    l.Parent = p
+    return l
 end
+
 local function typewrite(lbl, text, speed)
-    speed = speed or 0.025
+    speed = speed or 0.018
     task.spawn(function()
         for i = 1, #text do
             if not lbl or not lbl.Parent then return end
@@ -94,114 +123,130 @@ local function typewrite(lbl, text, speed)
     end)
 end
 
--- ── Status-file keywords that mean "not ready" ────────────────────────────
-local BAD_KEYWORDS = { "none", "not done", "update not finish", "not finish" }
-local function isNotReady(content)
-    if not content or content:gsub("%s","") == "" then return true end
-    local low = content:lower()
-    for _, kw in ipairs(BAD_KEYWORDS) do
-        if low:find(kw, 1, true) then return true end
+-- bad-status keywords
+local BAD_KW = {"none","not done","update not finish","not finish","wip","soon","n/a"}
+local function isNotReady(s)
+    if not s or s:gsub("%s","") == "" then return true end
+    local low = s:lower()
+    for _, k in ipairs(BAD_KW) do
+        if low:find(k, 1, true) then return true end
     end
     return false
 end
 
--- ── Notification queue ────────────────────────────────────────────────────
-local notifSG    = nil
-local notifStack = nil
-local notifCount = 0
+-- ── Log-level colours ─────────────────────────────────────────────────────
+local LOG_COL = {
+    default = C.txt,
+    info    = C.blue,
+    success = C.green,
+    warn    = C.yellow,
+    error   = C.red,
+    accent  = C.accLt,
+    cyan    = C.cyan,
+    purple  = C.purple,
+    orange  = C.orange,
+    dim     = C.txtD,
+    white   = C.txtH,
+    yellow  = C.yellow,
+    green   = C.green,
+    red     = C.red,
+}
 
-local function ensureNotifGui()
-    if notifSG and notifSG.Parent then return end
-    notifSG = new("ScreenGui", {
-        Name="LoaderNotifs", ResetOnSpawn=false,
-        ZIndexBehavior=Enum.ZIndexBehavior.Sibling,
-        DisplayOrder = 999,
+-- ── Notification system ───────────────────────────────────────────────────
+local _nSG, _nStack, _nIdx = nil, nil, 0
+
+local function _ensureNotif()
+    if _nSG and _nSG.Parent then return end
+    _nSG = new("ScreenGui",{
+        Name="LdrNotifs", ResetOnSpawn=false,
+        ZIndexBehavior=Enum.ZIndexBehavior.Sibling, DisplayOrder=999,
     }, CG)
-    notifStack = new("Frame", {
-        Size=UDim2.new(0, 260, 1, 0),
-        Position=UDim2.new(1, -270, 0, 0),
-        BackgroundTransparency=1,
-        BorderSizePixel=0,
-        ZIndex=100,
-    }, notifSG)
-    local ul = vlist(notifStack, 6)
+    _nStack = new("Frame",{
+        Size=UDim2.new(0,270,1,0),
+        Position=UDim2.new(1,-282,0,0),
+        BackgroundTransparency=1, BorderSizePixel=0, ZIndex=200,
+    }, _nSG)
+    local ul = vlist(_nStack, 5)
     ul.VerticalAlignment = Enum.VerticalAlignment.Bottom
-    pad(notifStack, 0, 12, 0, 0)
+    pad(_nStack, 0, 14, 0, 0)
 end
 
-local function pushNotif(title, body, color)
-    ensureNotifGui()
-    notifCount += 1
-    color = color or C.acc
+local function pushNotif(title, body, col)
+    _ensureNotif()
+    col = col or C.acc
+    _nIdx += 1
 
-    local card = new("Frame", {
-        Size             = UDim2.new(1, 0, 0, 60),
-        BackgroundColor3 = C.bgIn,
-        BorderSizePixel  = 0,
-        ZIndex           = 101,
-        BackgroundTransparency = 0,
-        LayoutOrder      = notifCount,
-    }, notifStack)
-    corner(card, 4)
+    local card = new("Frame",{
+        Size=UDim2.new(1,0,0,60),
+        BackgroundColor3=C.bgIn,
+        BorderSizePixel=0, ZIndex=201,
+        BackgroundTransparency=1,
+        LayoutOrder=_nIdx,
+        ClipsDescendants=true,
+    }, _nStack)
+    corner(card, 5)
     stroke(card, C.bor, 1)
 
-    -- accent left bar
-    local bar = new("Frame", {
+    -- top accent line
+    new("Frame",{
+        Size=UDim2.new(1,0,0,1),
+        BackgroundColor3=col, BorderSizePixel=0, ZIndex=202,
+    }, card)
+    -- left bar
+    local bar = new("Frame",{
         Size=UDim2.new(0,3,1,0),
-        BackgroundColor3=color,
-        BorderSizePixel=0, ZIndex=102,
+        BackgroundColor3=col, BorderSizePixel=0, ZIndex=202,
     }, card)
     corner(bar, 2)
 
-    new("TextLabel", {
-        Size=UDim2.new(1,-16,0,16),
-        Position=UDim2.new(0,12,0,8),
+    new("TextLabel",{
+        Size=UDim2.new(1,-16,0,18),
+        Position=UDim2.new(0,12,0,7),
         BackgroundTransparency=1,
-        Text=title,
-        TextColor3=C.txtH,
+        Text=title, TextColor3=C.txtH,
         FontFace=FONT, TextSize=12,
-        TextXAlignment=Enum.TextXAlignment.Left,
-        ZIndex=102,
+        TextXAlignment=Enum.TextXAlignment.Left, ZIndex=203,
     }, card)
-
-    new("TextLabel", {
-        Size=UDim2.new(1,-16,0,24),
+    new("TextLabel",{
+        Size=UDim2.new(1,-16,0,20),
         Position=UDim2.new(0,12,0,26),
         BackgroundTransparency=1,
-        Text=body,
-        TextColor3=C.txt,
+        Text=body, TextColor3=C.txt,
         FontFace=FONT, TextSize=10,
         TextXAlignment=Enum.TextXAlignment.Left,
-        TextWrapped=true,
-        ZIndex=102,
+        TextWrapped=true, ZIndex=203,
     }, card)
 
-    -- slide-in from right
-    card.Position = UDim2.new(1.1, 0, card.Position.Y.Scale, card.Position.Y.Offset)
-    tw(card, {Position=UDim2.new(0,0,card.Position.Y.Scale,card.Position.Y.Offset)}, T_SPRING)
-
-    -- progress bar at bottom
-    local progBg = new("Frame", {
+    -- progress bar
+    local pbg = new("Frame",{
         Size=UDim2.new(1,0,0,2),
         Position=UDim2.new(0,0,1,-2),
-        BackgroundColor3=C.bor, BorderSizePixel=0, ZIndex=103,
+        BackgroundColor3=C.bor, BorderSizePixel=0, ZIndex=204,
     }, card)
-    local prog = new("Frame", {
+    local pp = new("Frame",{
         Size=UDim2.new(1,0,1,0),
-        BackgroundColor3=color, BorderSizePixel=0, ZIndex=104,
-    }, progBg)
-    tw(prog, {Size=UDim2.new(0,0,1,0)}, ease(3.8, Enum.EasingStyle.Linear))
+        BackgroundColor3=col, BorderSizePixel=0, ZIndex=205,
+    }, pbg)
 
-    task.delay(4, function()
+    -- slide in from right
+    card.Position = UDim2.new(1.06, 0, 0, 0)
+    tw(card, {BackgroundTransparency=0, Position=UDim2.new(0,0,0,0)}, T_SPRING)
+    tw(pp, {Size=UDim2.new(0,0,1,0)}, ease(4, Enum.EasingStyle.Linear))
+
+    task.delay(4.1, function()
         if not card.Parent then return end
-        tw(card, {BackgroundTransparency=1, Position=UDim2.new(1.1,0,card.Position.Y.Scale,card.Position.Y.Offset)}, ease(0.2))
-        task.delay(0.22, function()
+        -- smooth slide-out fade
+        tw(card, {
+            BackgroundTransparency=1,
+            Position=UDim2.new(1.06,0,0,0),
+        }, ease(0.32, Enum.EasingStyle.Quart, Enum.EasingDirection.In))
+        task.delay(0.34, function()
             if card.Parent then card:Destroy() end
         end)
     end)
 end
 
--- ──────────────────────────────────────────────────────────────────────────
+-- ══════════════════════════════════════════════════════════════════════════
 local Loader = {}
 
 function Loader.CreateWindow(config)
@@ -210,27 +255,29 @@ function Loader.CreateWindow(config)
     local old = CG:FindFirstChild("LoaderUI")
     if old then old:Destroy() end
 
-    local sg = new("ScreenGui", {
+    local sg = new("ScreenGui",{
         Name="LoaderUI", ResetOnSpawn=false,
-        ZIndexBehavior=Enum.ZIndexBehavior.Sibling,
+        ZIndexBehavior=Enum.ZIndexBehavior.Sibling, DisplayOrder=100,
     }, CG)
 
-    local W, H     = 500, 320
-    local LEFT_W   = 278
-    local RIGHT_W  = W - LEFT_W - 1
-    local STATUS_H = 118
-    local TOP_H    = H - STATUS_H - 1
+    -- Dimensions
+    local W, H       = 560, 360
+    local LEFT_W     = 300
+    local STATUS_H   = 120
 
-    local bgOverlay = new("Frame", {
+    -- No ugly black overlay – just a soft vignette image
+    local vignette = new("ImageLabel",{
         Size=UDim2.new(1,0,1,0),
-        BackgroundColor3=C.black,
-        BackgroundTransparency=0,
+        BackgroundTransparency=1,
+        Image="rbxasset://textures/ui/GuiImagePlaceholder.png",
+        ImageColor3=C.black,
+        ImageTransparency=1,   -- starts invisible, fades in
         BorderSizePixel=0, ZIndex=0,
     }, sg)
 
-    local win = new("Frame", {
+    local win = new("Frame",{
         Size=UDim2.new(0,W,0,H),
-        Position=UDim2.new(0.5,-W/2,0.5,-H/2+24),
+        Position=UDim2.new(0.5,-W/2,0.5,-H/2+22),
         BackgroundColor3=C.bg,
         BorderSizePixel=0,
         ClipsDescendants=true,
@@ -238,8 +285,9 @@ function Loader.CreateWindow(config)
         ZIndex=2,
     }, sg)
     local winStroke = stroke(win, C.bor, 1)
+    corner(win, 5)
 
-    -- drag
+    -- ── Drag ──────────────────────────────────────────────────────────────
     do
         local drag, ds, sp = false, nil, nil
         win.InputBegan:Connect(function(i)
@@ -249,8 +297,8 @@ function Loader.CreateWindow(config)
         end)
         UIS.InputChanged:Connect(function(i)
             if drag and i.UserInputType==Enum.UserInputType.MouseMovement then
-                local d=i.Position-ds
-                win.Position=UDim2.new(sp.X.Scale,sp.X.Offset+d.X,sp.Y.Scale,sp.Y.Offset+d.Y)
+                local d = i.Position-ds
+                win.Position = UDim2.new(sp.X.Scale,sp.X.Offset+d.X,sp.Y.Scale,sp.Y.Offset+d.Y)
             end
         end)
         UIS.InputEnded:Connect(function(i)
@@ -258,37 +306,89 @@ function Loader.CreateWindow(config)
         end)
     end
 
-    -- panels
+    -- ── Resize handle (bottom-right, GameSense style) ─────────────────────
+    local resizeHandle = new("TextButton",{
+        Size=UDim2.new(0,16,0,16),
+        Position=UDim2.new(1,-16,1,-16),
+        BackgroundTransparency=1,
+        Text="", ZIndex=20,
+        AutoButtonColor=false,
+    }, win)
+    -- 3 diagonal tick marks
+    for i=1,3 do
+        local sz=i*4
+        new("Frame",{
+            Size=UDim2.new(0,1,0,sz),
+            Position=UDim2.new(1,-(i*4),1,-sz),
+            BackgroundColor3=C.borLt,
+            Rotation=0,
+            BorderSizePixel=0, ZIndex=21,
+        }, resizeHandle)
+    end
+
+    do
+        local resizing, startMouse, startSz = false, nil, nil
+        resizeHandle.InputBegan:Connect(function(i)
+            if i.UserInputType==Enum.UserInputType.MouseButton1 then
+                resizing=true; startMouse=i.Position
+                startSz=Vector2.new(W,H)
+            end
+        end)
+        UIS.InputChanged:Connect(function(i)
+            if resizing and i.UserInputType==Enum.UserInputType.MouseMovement then
+                local d = i.Position - startMouse
+                W = math.clamp(startSz.X+d.X, 460, 820)
+                H = math.clamp(startSz.Y+d.Y, 300, 620)
+                win.Size = UDim2.new(0,W,0,H)
+            end
+        end)
+        UIS.InputEnded:Connect(function(i)
+            if i.UserInputType==Enum.UserInputType.MouseButton1 then resizing=false end
+        end)
+        resizeHandle.MouseEnter:Connect(function()
+            for _, f in ipairs(resizeHandle:GetChildren()) do
+                if f:IsA("Frame") then tw(f,{BackgroundColor3=C.acc},T_FAST) end
+            end
+        end)
+        resizeHandle.MouseLeave:Connect(function()
+            for _, f in ipairs(resizeHandle:GetChildren()) do
+                if f:IsA("Frame") then tw(f,{BackgroundColor3=C.borLt},T_FAST) end
+            end
+        end)
+    end
+
+    -- ── Panel layout (relative) ───────────────────────────────────────────
     local listPanel = new("Frame",{
-        Size=UDim2.new(0,LEFT_W,0,TOP_H),
+        Size=UDim2.new(0,LEFT_W,1,-STATUS_H-1),
         BackgroundColor3=C.panel, BorderSizePixel=0, ZIndex=2,
     }, win)
 
-    new("Frame",{
-        Size=UDim2.new(0,1,0,TOP_H),
+    new("Frame",{   -- vertical divider
+        Size=UDim2.new(0,1,1,-STATUS_H-1),
         Position=UDim2.new(0,LEFT_W,0,0),
         BackgroundColor3=C.bor, BorderSizePixel=0, ZIndex=2,
     }, win)
 
     local optPanel = new("Frame",{
-        Size=UDim2.new(0,RIGHT_W,0,TOP_H),
+        Size=UDim2.new(1,-LEFT_W-1,1,-STATUS_H-1),
         Position=UDim2.new(0,LEFT_W+1,0,0),
         BackgroundColor3=C.panel, BorderSizePixel=0, ZIndex=2,
+        ClipsDescendants=true,
     }, win)
 
-    new("Frame",{
+    new("Frame",{   -- horizontal divider
         Size=UDim2.new(1,0,0,1),
-        Position=UDim2.new(0,0,0,TOP_H),
+        Position=UDim2.new(0,0,1,-(STATUS_H+1)),
         BackgroundColor3=C.bor, BorderSizePixel=0, ZIndex=3,
     }, win)
 
     local statusPanel = new("Frame",{
         Size=UDim2.new(1,0,0,STATUS_H),
-        Position=UDim2.new(0,0,0,TOP_H+1),
+        Position=UDim2.new(0,0,1,-STATUS_H),
         BackgroundColor3=C.bg, BorderSizePixel=0, ZIndex=2,
     }, win)
 
-    -- script list
+    -- ── Script list ───────────────────────────────────────────────────────
     local scriptScroll = new("ScrollingFrame",{
         Size=UDim2.new(1,0,1,0),
         BackgroundTransparency=1, BorderSizePixel=0,
@@ -299,44 +399,130 @@ function Loader.CreateWindow(config)
     }, listPanel)
     vlist(scriptScroll, 0)
 
-    -- options panel
-    new("TextLabel",{
-        Size=UDim2.new(1,-14,0,26),
-        Position=UDim2.new(0,8,0,4),
-        BackgroundTransparency=1,
-        Text="Options",
-        TextColor3=C.txtH, FontFace=FONT, TextSize=13,
-        TextXAlignment=Enum.TextXAlignment.Left, ZIndex=3,
+    -- ── Right panel: tab bar (Options | Devlog) ───────────────────────────
+    local tabBar = new("Frame",{
+        Size=UDim2.new(1,0,0,26),
+        BackgroundColor3=C.bgIn,
+        BorderSizePixel=0, ZIndex=3,
     }, optPanel)
     new("Frame",{
-        Size=UDim2.new(1,-16,0,1),
-        Position=UDim2.new(0,8,0,30),
-        BackgroundColor3=C.bor, BorderSizePixel=0, ZIndex=3,
-    }, optPanel)
-    local optArea = new("Frame",{
-        Size=UDim2.new(1,-16,1,-40),
-        Position=UDim2.new(0,8,0,38),
-        BackgroundTransparency=1, ZIndex=3,
-    }, optPanel)
-    vlist(optArea, 6)
+        Size=UDim2.new(1,0,0,1),
+        Position=UDim2.new(0,0,1,-1),
+        BackgroundColor3=C.bor, BorderSizePixel=0, ZIndex=4,
+    }, tabBar)
 
-    -- status panel
+    local tabContent = new("Frame",{
+        Size=UDim2.new(1,0,1,-26),
+        Position=UDim2.new(0,0,0,26),
+        BackgroundTransparency=1, BorderSizePixel=0, ZIndex=2,
+        ClipsDescendants=true,
+    }, optPanel)
+
+    -- Options page
+    local optPage = new("Frame",{
+        Size=UDim2.new(1,0,1,0),
+        BackgroundTransparency=1, BorderSizePixel=0, ZIndex=3,
+    }, tabContent)
+    local optArea = new("Frame",{
+        Size=UDim2.new(1,-16,1,-14),
+        Position=UDim2.new(0,8,0,8),
+        BackgroundTransparency=1, ZIndex=4,
+    }, optPage)
+    vlist(optArea, 7)
+
+    -- Devlog page
+    local devlogPage = new("Frame",{
+        Size=UDim2.new(1,0,1,0),
+        BackgroundTransparency=1, BorderSizePixel=0, ZIndex=3,
+        Visible=false,
+    }, tabContent)
+    local devlogScroll = new("ScrollingFrame",{
+        Size=UDim2.new(1,-8,1,-8),
+        Position=UDim2.new(0,4,0,4),
+        BackgroundTransparency=1, BorderSizePixel=0,
+        ScrollBarThickness=2, ScrollBarImageColor3=C.bor,
+        CanvasSize=UDim2.new(0,0,0,0),
+        AutomaticCanvasSize=Enum.AutomaticSize.Y,
+        ClipsDescendants=true, ZIndex=4,
+    }, devlogPage)
+    vlist(devlogScroll, 4)
+
+    -- Tab buttons
+    local PAGES    = {optPage, devlogPage}
+    local TAB_NAMES = {"Options", "Devlog"}
+    local activeTab = 1
+    local tabBtns   = {}
+
+    local tabBtnList = Instance.new("UIListLayout")
+    tabBtnList.FillDirection = Enum.FillDirection.Horizontal
+    tabBtnList.SortOrder     = Enum.SortOrder.LayoutOrder
+    tabBtnList.Parent = tabBar
+
+    for i, tname in ipairs(TAB_NAMES) do
+        local btn = new("TextButton",{
+            Size=UDim2.new(0.5,0,1,0),
+            BackgroundColor3 = i==1 and C.panel or C.bgIn,
+            BorderSizePixel=0,
+            Text=tname,
+            TextColor3 = i==1 and C.txtH or C.txtD,
+            FontFace=FONT, TextSize=11,
+            AutoButtonColor=false, ZIndex=4,
+            LayoutOrder=i,
+        }, tabBar)
+        local underline = new("Frame",{
+            Size=UDim2.new(1,0,0,1),
+            Position=UDim2.new(0,0,1,-1),
+            BackgroundColor3 = i==1 and C.acc or C.bor,
+            BorderSizePixel=0, ZIndex=5,
+        }, btn)
+        tabBtns[i] = {btn=btn, ul=underline}
+
+        btn.MouseButton1Click:Connect(function()
+            activeTab = i
+            for j, pair in ipairs(tabBtns) do
+                PAGES[j].Visible = (j==i)
+                tw(pair.btn, {
+                    BackgroundColor3 = j==i and C.panel or C.bgIn,
+                    TextColor3 = j==i and C.txtH or C.txtD,
+                }, T_FAST)
+                pair.ul.BackgroundColor3 = j==i and C.acc or C.bor
+            end
+        end)
+        btn.MouseEnter:Connect(function()
+            if activeTab~=i then tw(btn,{TextColor3=C.txt},T_FAST) end
+        end)
+        btn.MouseLeave:Connect(function()
+            if activeTab~=i then tw(btn,{TextColor3=C.txtD},T_FAST) end
+        end)
+    end
+
+    -- ── Status panel ──────────────────────────────────────────────────────
     local statusHeader = new("Frame",{
         Size=UDim2.new(1,0,0,20),
         BackgroundColor3=C.panel, BorderSizePixel=0, ZIndex=3,
     }, statusPanel)
 
+    -- Dot + glow ring
+    local dotGlow = new("Frame",{
+        Size=UDim2.new(0,10,0,10),
+        Position=UDim2.new(0,7,0.5,-5),
+        BackgroundColor3=C.green,
+        BackgroundTransparency=0.72,
+        BorderSizePixel=0, ZIndex=3,
+    }, statusHeader)
+    corner(dotGlow,6)
+
     local statusDot = new("Frame",{
-        Size=UDim2.new(0,5,0,5),
-        Position=UDim2.new(0,8,0.5,-2),
-        BackgroundColor3=C.acc,
+        Size=UDim2.new(0,6,0,6),
+        Position=UDim2.new(0,9,0.5,-3),
+        BackgroundColor3=C.green,
         BorderSizePixel=0, ZIndex=4,
     }, statusHeader)
-    corner(statusDot, 3)
+    corner(statusDot,4)
 
     new("TextLabel",{
-        Size=UDim2.new(1,-24,1,0),
-        Position=UDim2.new(0,18,0,0),
+        Size=UDim2.new(1,-26,1,0),
+        Position=UDim2.new(0,23,0,0),
         BackgroundTransparency=1,
         Text="Status",
         TextColor3=C.txtH, FontFace=FONT, TextSize=11,
@@ -357,76 +543,140 @@ function Loader.CreateWindow(config)
         AutomaticCanvasSize=Enum.AutomaticSize.Y,
         ClipsDescendants=true, ZIndex=3,
     }, statusPanel)
-    pad(statusBody, 6, 6, 10, 10)
-    vlist(statusBody, 3)
+    pad(statusBody, 5, 5, 10, 10)
+    vlist(statusBody, 2)
 
-    -- bottom load bar
+    local function setDotState(state)
+        local col
+        if state=="ok"    then col=C.green
+        elseif state=="error" then col=C.red
+        elseif state=="warn"  then col=C.yellow
+        else col=C.acc end
+        tw(statusDot, {BackgroundColor3=col}, T_SINE)
+        tw(dotGlow,   {BackgroundColor3=col}, T_SINE)
+    end
+
+    -- ── Load-bar ──────────────────────────────────────────────────────────
     local loadingBar = new("Frame",{
-        Size=UDim2.new(0,0,0,1),
-        Position=UDim2.new(0,0,1,-1),
-        BackgroundColor3=C.acc, BorderSizePixel=0, ZIndex=10,
+        Size=UDim2.new(0,0,0,2),
+        Position=UDim2.new(0,0,1,-2),
+        BackgroundColor3=C.acc,
+        BackgroundTransparency=0,
+        BorderSizePixel=0, ZIndex=10,
     }, win)
 
     local function animateLoadBar()
-        tw(loadingBar, {Size=UDim2.new(0.6,0,0,1)}, ease(0.8,Enum.EasingStyle.Quad,Enum.EasingDirection.Out))
-        task.delay(0.85, function()
-            tw(loadingBar, {Size=UDim2.new(1,0,0,1)}, ease(0.3,Enum.EasingStyle.Quad,Enum.EasingDirection.In))
-            task.delay(0.35, function()
-                tw(loadingBar, {Size=UDim2.new(0,0,0,1)}, ease(0.2))
+        loadingBar.BackgroundTransparency = 0
+        loadingBar.Size = UDim2.new(0,0,0,2)
+        tw(loadingBar,{Size=UDim2.new(0.55,0,0,2)}, ease(0.9,Enum.EasingStyle.Quad,Enum.EasingDirection.Out))
+        task.delay(0.93,function()
+            if not loadingBar.Parent then return end
+            tw(loadingBar,{Size=UDim2.new(1,0,0,2)}, ease(0.28,Enum.EasingStyle.Quad,Enum.EasingDirection.In))
+            task.delay(0.30,function()
+                tw(loadingBar,{BackgroundTransparency=1}, ease(0.45,Enum.EasingStyle.Sine))
             end)
         end)
     end
 
-    -- ── Status output helper ───────────────────────────────────────────────
-    local function appendStatus(text, color)
-        local col
-        if     color=="yellow" then col=C.yellow
-        elseif color=="green"  then col=C.green
-        elseif color=="red"    then col=C.red
-        elseif color=="accent" then col=C.accLt
-        else                        col=C.txt
-        end
+    -- ── Log helper ────────────────────────────────────────────────────────
+    local function appendLog(text, level)
+        local col = LOG_COL[level or "default"] or C.txt
         local lbl = new("TextLabel",{
             Size=UDim2.new(1,0,0,14),
             BackgroundTransparency=1,
             Text="",
-            TextColor3=col, FontFace=FONT, TextSize=12,
+            TextColor3=col, FontFace=FONT, TextSize=11,
             TextXAlignment=Enum.TextXAlignment.Left,
             TextWrapped=true, ZIndex=4,
             TextTransparency=1,
         }, statusBody)
         tw(lbl, {TextTransparency=0}, T_MED)
-        typewrite(lbl, text, 0.018)
-        -- auto scroll to bottom
-        task.delay(0.05, function()
+        typewrite(lbl, text, 0.014)
+        task.delay(0.08, function()
             if statusBody and statusBody.Parent then
                 statusBody.CanvasPosition = Vector2.new(0, math.huge)
             end
         end)
     end
 
+    -- ── Devlog helper ─────────────────────────────────────────────────────
+    local function addDevlogCard(sname, msg, date, col)
+        col = col or C.acc
+        local entry = new("Frame",{
+            Size=UDim2.new(1,0,0,52),
+            BackgroundColor3=C.bgItem,
+            BorderSizePixel=0, ZIndex=5,
+            BackgroundTransparency=1,
+        }, devlogScroll)
+        corner(entry, 4)
+        stroke(entry, C.bor, 1)
+
+        local lb = new("Frame",{
+            Size=UDim2.new(0,3,1,0),
+            BackgroundColor3=col,
+            BorderSizePixel=0, ZIndex=6,
+        }, entry)
+        corner(lb, 2)
+
+        new("TextLabel",{
+            Size=UDim2.new(1,-12,0,14),
+            Position=UDim2.new(0,10,0,5),
+            BackgroundTransparency=1,
+            Text=sname,
+            TextColor3=C.txtH, FontFace=FONT, TextSize=11,
+            TextXAlignment=Enum.TextXAlignment.Left, ZIndex=6,
+        }, entry)
+        new("TextLabel",{
+            Size=UDim2.new(1,-12,0,20),
+            Position=UDim2.new(0,10,0,18),
+            BackgroundTransparency=1,
+            Text=msg,
+            TextColor3=C.txt, FontFace=FONT, TextSize=10,
+            TextXAlignment=Enum.TextXAlignment.Left,
+            TextWrapped=true, ZIndex=6,
+        }, entry)
+        new("TextLabel",{
+            Size=UDim2.new(1,-12,0,10),
+            Position=UDim2.new(0,10,0,39),
+            BackgroundTransparency=1,
+            Text=date or "",
+            TextColor3=C.txtD, FontFace=FONT, TextSize=9,
+            TextXAlignment=Enum.TextXAlignment.Left, ZIndex=6,
+        }, entry)
+
+        tw(entry,{BackgroundTransparency=0},T_MED)
+    end
+
     -- ── Button factory ────────────────────────────────────────────────────
     local function makeBtn(text, danger)
         local btn = new("TextButton",{
             Size=UDim2.new(1,0,0,28),
-            BackgroundColor3=C.btnBg, BorderSizePixel=0,
-            Text=text, TextColor3=danger and C.red or C.txt,
+            BackgroundColor3=C.btnBg,
+            BorderSizePixel=0,
+            Text=text,
+            TextColor3=danger and C.red or C.txt,
             FontFace=FONT, TextSize=12,
             AutoButtonColor=false, ZIndex=4,
             BackgroundTransparency=1,
         }, optArea)
-        local bs = stroke(btn, danger and Color3.fromRGB(70,26,26) or C.bor, 1)
+        corner(btn, 3)
+        local bs = stroke(btn, danger and Color3.fromRGB(60,20,20) or C.bor, 1)
+
         btn.MouseEnter:Connect(function()
-            tw(btn,{BackgroundColor3=danger and C.accDark or C.btnHov,BackgroundTransparency=0,TextColor3=danger and Color3.fromRGB(230,90,90) or C.txtH},T_FAST)
-            bs.Color = danger and C.red or C.borLt
+            tw(btn,{BackgroundColor3=danger and C.redDk or C.btnHov, BackgroundTransparency=0, TextColor3=danger and C.accGlow or C.txtH},T_FAST)
+            bs.Color = danger and C.accLt or C.borLt
         end)
         btn.MouseLeave:Connect(function()
-            tw(btn,{BackgroundColor3=C.btnBg,BackgroundTransparency=1,TextColor3=danger and C.red or C.txt},T_FAST)
-            bs.Color = danger and Color3.fromRGB(70,26,26) or C.bor
+            tw(btn,{BackgroundColor3=C.btnBg, BackgroundTransparency=1, TextColor3=danger and C.red or C.txt},T_FAST)
+            bs.Color = danger and Color3.fromRGB(60,20,20) or C.bor
+        end)
+        btn.MouseButton1Down:Connect(function()
+            tw(btn,{Size=UDim2.new(1,-4,0,26)},ease(0.07))
+        end)
+        btn.MouseButton1Up:Connect(function()
+            tw(btn,{Size=UDim2.new(1,0,0,28)},T_SPRING)
         end)
         btn.MouseButton1Click:Connect(function()
-            tw(btn,{BackgroundColor3=danger and Color3.fromRGB(50,14,14) or Color3.fromRGB(44,44,50),BackgroundTransparency=0},T_FAST)
-            task.delay(0.12,function() tw(btn,{BackgroundColor3=C.btnBg,BackgroundTransparency=1},T_FAST) end)
             animateLoadBar()
         end)
         return btn
@@ -435,19 +685,19 @@ function Loader.CreateWindow(config)
     local loadBtn = makeBtn("Load",  false)
     local exitBtn = makeBtn("Exit",  true)
 
+    -- ── Script entries ────────────────────────────────────────────────────
     local selected = nil
     local scripts  = {}
     local Window   = {}
 
-    -- ── AddScript ─────────────────────────────────────────────────────────
     function Window:AddScript(def)
         local name      = def.name      or "Script"
         local date      = def.date      or ""
         local icon      = def.icon      or nil
         local onLoad    = def.onLoad    or nil
-        local statusUrl = def.statusUrl or nil  -- optional URL to raw status/date file
+        local statusUrl = def.statusUrl or nil
 
-        local ITEM_H = 50
+        local ITEM_H = 54
         local idx    = #scripts + 1
 
         local item = new("Frame",{
@@ -461,7 +711,7 @@ function Loader.CreateWindow(config)
             Size=UDim2.new(1,0,0,1),
             Position=UDim2.new(0,0,1,-1),
             BackgroundColor3=C.bor,
-            BackgroundTransparency=0.5,
+            BackgroundTransparency=0.55,
             BorderSizePixel=0, ZIndex=4,
         }, item)
 
@@ -471,86 +721,109 @@ function Loader.CreateWindow(config)
             BackgroundColor3=C.acc,
             BorderSizePixel=0, ZIndex=5,
         }, item)
+        corner(selBar,1)
 
-        local ICON_S = 32
+        local ICON_S = 34
         local iconBg = new("Frame",{
             Size=UDim2.new(0,ICON_S,0,ICON_S),
             Position=UDim2.new(0,10,0.5,-ICON_S/2),
             BackgroundColor3=C.bgIn,
             BorderSizePixel=0, ZIndex=4,
         }, item)
-        corner(iconBg, 3)
+        corner(iconBg,4)
         stroke(iconBg, C.bor, 1)
 
         if icon then
             new("ImageLabel",{
                 Size=UDim2.new(1,0,1,0),
-                BackgroundTransparency=1,
-                Image=icon, ZIndex=5,
+                BackgroundTransparency=1, Image=icon, ZIndex=5,
             }, iconBg)
         else
             new("TextLabel",{
                 Size=UDim2.new(1,0,1,0),
                 BackgroundTransparency=1,
                 Text=string.sub(name,1,1):upper(),
-                TextColor3=C.accLt,
-                FontFace=FONT, TextSize=15, ZIndex=5,
+                TextColor3=C.accLt, FontFace=FONT, TextSize=16, ZIndex=5,
             }, iconBg)
         end
 
-        -- status dot on icon corner (green/red based on statusUrl)
+        -- Status dot (top-right of icon)
         local readyDot = new("Frame",{
-            Size=UDim2.new(0,7,0,7),
-            Position=UDim2.new(1,-3,1,-3),
-            BackgroundColor3=C.txtD,  -- default grey until checked
-            BorderSizePixel=0, ZIndex=6,
+            Size=UDim2.new(0,8,0,8),
+            Position=UDim2.new(1,-4,0,-4),
+            BackgroundColor3=C.txtD,
+            BorderSizePixel=0, ZIndex=7,
         }, iconBg)
-        corner(readyDot, 4)
-        stroke(readyDot, C.bgIn, 1)
+        corner(readyDot,5)
+        stroke(readyDot, C.bgIn, 1.5)
 
-        local TX = 10 + ICON_S + 10
+        local TX = 10+ICON_S+10
 
         local nameLbl = new("TextLabel",{
-            Size=UDim2.new(1,-(TX+8),0,16),
-            Position=UDim2.new(0,TX,0,11),
+            Size=UDim2.new(1,-(TX+8),0,17),
+            Position=UDim2.new(0,TX,0,9),
             BackgroundTransparency=1,
-            Text=name,
-            TextColor3=C.accLt,
+            Text=name, TextColor3=C.accLt,
             FontFace=FONT, TextSize=13,
             TextXAlignment=Enum.TextXAlignment.Left, ZIndex=4,
         }, item)
 
         local dateLbl = new("TextLabel",{
             Size=UDim2.new(1,-(TX+8),0,12),
-            Position=UDim2.new(0,TX,0,28),
+            Position=UDim2.new(0,TX,0,27),
             BackgroundTransparency=1,
-            Text="Updated " .. date,
-            TextColor3=C.txtD,
+            Text="Updated "..date, TextColor3=C.txtD,
             FontFace=FONT, TextSize=10,
             TextXAlignment=Enum.TextXAlignment.Left, ZIndex=4,
         }, item)
 
-        -- fetch statusUrl if provided
+        -- tag badge
+        local tagFrame = new("Frame",{
+            Size=UDim2.new(0,64,0,11),
+            Position=UDim2.new(0,TX,0,40),
+            BackgroundColor3=C.greenDk,
+            BorderSizePixel=0, ZIndex=4, Visible=false,
+        }, item)
+        corner(tagFrame, 2)
+        local tagLbl = new("TextLabel",{
+            Size=UDim2.new(1,-6,1,0),
+            Position=UDim2.new(0,4,0,0),
+            BackgroundTransparency=1,
+            Text="", TextColor3=C.green,
+            FontFace=FONT, TextSize=8,
+            TextXAlignment=Enum.TextXAlignment.Left, ZIndex=5,
+        }, tagFrame)
+
         if statusUrl then
             task.spawn(function()
-                local ok2, result = pcall(function()
-                    return game:HttpGet(statusUrl)
-                end)
+                local ok2, result = pcall(function() return game:HttpGet(statusUrl) end)
                 if ok2 and result then
-                    local trimmed = result:match("^%s*(.-)%s*$")
-                    -- update date label with first line if it looks like a date
-                    local firstLine = trimmed:match("^([^\n]+)")
-                    if firstLine and firstLine ~= "" then
-                        dateLbl.Text = "Updated " .. firstLine
+                    local trimmed = result:match("^%s*(.-)%s*$") or ""
+                    local firstLine = trimmed:match("^([^\n\r]+)") or ""
+                    if firstLine ~= "" then
+                        dateLbl.Text = "Updated "..firstLine
                     end
-                    -- set dot color
                     if isNotReady(trimmed) then
                         readyDot.BackgroundColor3 = C.red
+                        tagFrame.BackgroundColor3 = C.redDk
+                        tagFrame.Size = UDim2.new(0,58,0,11)
+                        tagLbl.Text = "NOT READY"
+                        tagLbl.TextColor3 = C.red
                     else
                         readyDot.BackgroundColor3 = C.green
+                        tagFrame.BackgroundColor3 = C.greenDk
+                        tagFrame.Size = UDim2.new(0,66,0,11)
+                        tagLbl.Text = "UP TO DATE"
+                        tagLbl.TextColor3 = C.green
                     end
+                    tagFrame.Visible = true
                 else
-                    readyDot.BackgroundColor3 = C.red
+                    readyDot.BackgroundColor3 = C.yellow
+                    tagFrame.BackgroundColor3 = C.yellowDk
+                    tagFrame.Size = UDim2.new(0,60,0,11)
+                    tagLbl.Text = "NO STATUS"
+                    tagLbl.TextColor3 = C.yellow
+                    tagFrame.Visible = true
                 end
             end)
         else
@@ -559,15 +832,14 @@ function Loader.CreateWindow(config)
 
         local hitbox = new("TextButton",{
             Size=UDim2.new(1,0,1,0),
-            BackgroundTransparency=1,
-            Text="", ZIndex=6,
+            BackgroundTransparency=1, Text="", ZIndex=6,
         }, item)
 
-        local entry = {item=item, name=name, onLoad=onLoad, nameLbl=nameLbl, selBar=selBar, iconBg=iconBg}
+        local entry = {item=item, name=name, onLoad=onLoad, nameLbl=nameLbl, selBar=selBar}
         table.insert(scripts, entry)
 
         local function selectEntry()
-            if selected and selected ~= entry then
+            if selected and selected~=entry then
                 local prev = selected
                 tw(prev.item,    {BackgroundColor3=C.bgItem, BackgroundTransparency=1}, T_MED)
                 tw(prev.nameLbl, {TextColor3=C.accLt}, T_FAST)
@@ -577,32 +849,23 @@ function Loader.CreateWindow(config)
             tw(item,    {BackgroundColor3=C.itemSel, BackgroundTransparency=0}, T_MED)
             tw(nameLbl, {TextColor3=C.acc}, T_FAST)
             tw(selBar,  {Size=UDim2.new(0,2,1,0), Position=UDim2.new(0,0,0,0)}, T_SPRING)
-            -- push notification on select
             pushNotif("Script Selected", entry.name, C.acc)
+            appendLog("► Selected: "..entry.name, "accent")
         end
 
         hitbox.MouseEnter:Connect(function()
-            if selected ~= entry then
-                tw(item, {BackgroundColor3=C.itemHov, BackgroundTransparency=0}, T_FAST)
-            end
+            if selected~=entry then tw(item,{BackgroundColor3=C.itemHov, BackgroundTransparency=0},T_FAST) end
         end)
         hitbox.MouseLeave:Connect(function()
-            if selected ~= entry then
-                tw(item, {BackgroundColor3=C.bgItem, BackgroundTransparency=1}, T_FAST)
-            end
+            if selected~=entry then tw(item,{BackgroundColor3=C.bgItem, BackgroundTransparency=1},T_FAST) end
         end)
-        hitbox.MouseButton1Click:Connect(function()
-            selectEntry()
-        end)
+        hitbox.MouseButton1Click:Connect(selectEntry)
 
-        task.delay(0.05*idx, function()
+        task.delay(0.04*idx, function()
             if not item.Parent then return end
-            tw(item, {BackgroundTransparency = selected==entry and 0 or 1}, T_MED)
+            tw(item,{BackgroundTransparency=selected==entry and 0 or 1},T_MED)
         end)
-
-        if #scripts == 1 then
-            task.defer(selectEntry)
-        end
+        if #scripts==1 then task.defer(selectEntry) end
     end
 
     -- ── SetStatus ─────────────────────────────────────────────────────────
@@ -610,47 +873,76 @@ function Loader.CreateWindow(config)
         for _, c in ipairs(statusBody:GetChildren()) do
             if c:IsA("TextLabel") then c:Destroy() end
         end
-        tw(statusDot, {BackgroundColor3=C.acc}, T_FAST)
+        setDotState("ok")
         for i, def in ipairs(lines) do
-            task.delay(0.08*(i-1), function()
-                appendStatus(def.text or "", def.color)
+            task.delay(0.07*(i-1), function()
+                appendLog(def.text or "", def.color or "default")
             end)
         end
+    end
+
+    -- ── SetState ──────────────────────────────────────────────────────────
+    function Window:SetState(state)
+        setDotState(state)
     end
 
     -- ── OnLoad ────────────────────────────────────────────────────────────
     function Window:OnLoad(cb)
         loadBtn.MouseButton1Click:Connect(function()
             if selected then
-                local sname = selected.name or "Unknown"
-                -- output to status
-                appendStatus("► Loading: " .. sname, "accent")
-                -- notification
-                pushNotif("Loading Script", sname, C.accLt)
-                if selected.onLoad then selected.onLoad() end
+                local sname = selected.name
+                appendLog("────────────────────", "dim")
+                appendLog("► Initializing: "..sname, "cyan")
+                setDotState("warn")
+                pushNotif("Loading", sname, C.accLt)
+                if selected.onLoad then
+                    local ok3, err = pcall(selected.onLoad)
+                    if ok3 then
+                        task.delay(0.4, function()
+                            appendLog("✓ Loaded: "..sname, "success")
+                            appendLog("────────────────────", "dim")
+                            setDotState("ok")
+                            pushNotif("Loaded!", sname.." ready.", C.green)
+                        end)
+                    else
+                        appendLog("✗ Error: "..tostring(err), "error")
+                        appendLog("────────────────────", "dim")
+                        setDotState("error")
+                        pushNotif("Error", tostring(err), C.red)
+                    end
+                else
+                    task.delay(0.4, function()
+                        appendLog("✓ Loaded: "..sname, "success")
+                        setDotState("ok")
+                        pushNotif("Loaded!", sname.." ready.", C.green)
+                    end)
+                end
                 if cb then cb(selected) end
-                task.delay(0.5, function()
-                    appendStatus("✓ Loaded: " .. sname, "green")
-                end)
             else
-                appendStatus("⚠ No script selected.", "yellow")
-                pushNotif("No Script", "Please select a script first.", C.yellow)
+                appendLog("⚠ No script selected!", "warn")
+                setDotState("warn")
+                pushNotif("Warning", "Select a script first!", C.yellow)
             end
         end)
     end
 
+    -- ── OnExit ────────────────────────────────────────────────────────────
     function Window:OnExit(cb)
         exitBtn.MouseButton1Click:Connect(function()
-            tw(bgOverlay, {BackgroundTransparency=0}, ease(0.2))
-            tw(win, {BackgroundTransparency=1, Position=UDim2.new(0.5,-W/2,0.5,-H/2+16)}, ease(0.2))
-            task.delay(0.22, function()
+            tw(win, {
+                BackgroundTransparency=1,
+                Position=UDim2.new(0.5,-W/2,0.5,-H/2+14),
+            }, T_OUT)
+            tw(vignette, {ImageTransparency=1}, ease(0.26))
+            task.delay(0.30, function()
                 if cb then cb() end
                 sg:Destroy()
-                if notifSG then notifSG:Destroy() end
+                if _nSG then _nSG:Destroy() end
             end)
         end)
     end
 
+    -- ── AddOption ─────────────────────────────────────────────────────────
     function Window:AddOption(text, danger, cb)
         local btn = makeBtn(text, danger)
         btn.MouseButton1Click:Connect(function()
@@ -658,19 +950,32 @@ function Loader.CreateWindow(config)
         end)
     end
 
+    -- ── AddDevlog ─────────────────────────────────────────────────────────
+    function Window:AddDevlog(scriptName, message, date, color)
+        local col = LOG_COL[color or "accent"] or C.acc
+        addDevlogCard(scriptName, message, date, col)
+    end
+
+    -- ── Log ───────────────────────────────────────────────────────────────
+    function Window:Log(text, level)
+        appendLog(text, level)
+    end
+
+    -- ── Notify ────────────────────────────────────────────────────────────
     function Window:Notify(title, body, color)
-        pushNotif(title, body, color)
+        pushNotif(title, body, LOG_COL[color or "accent"] or C.acc)
     end
 
     function Window:Destroy()
         sg:Destroy()
-        if notifSG then notifSG:Destroy() end
+        if _nSG then _nSG:Destroy() end
     end
 
+    -- ── Entrance animation ────────────────────────────────────────────────
     task.spawn(function()
-        tw(bgOverlay, {BackgroundTransparency=0.55}, ease(0.3))
+        tw(vignette,{ImageTransparency=0.68}, ease(0.38))
         task.wait(0.05)
-        tw(win, {
+        tw(win,{
             BackgroundTransparency=0,
             Position=UDim2.new(0.5,-W/2,0.5,-H/2),
         }, T_SPRING)
