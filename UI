@@ -620,7 +620,8 @@ function Library.CreateWindow()
         function Section:AddSubTabs(tabList, cb)
             local btnRow = new("Frame", {Size=UDim2.new(1,0,0,22),BackgroundTransparency=1}, items)
             hlist(btnRow, 4)
-            local tabs2={}, activeSub=nil
+            local tabs2    = {}
+            local activeSub = nil
 
             for idx, tName in ipairs(tabList) do
                 local cont = new("Frame", {
@@ -674,7 +675,7 @@ function Library.CreateWindow()
                 Size=UDim2.new(0,14,0,14), Position=UDim2.new(0,0,0.5,-7),
                 BackgroundColor3=state and ACC or BG_DARK, BorderSizePixel=0,
             }, row)
-            local indS = stroke(ind, ACC, 1)
+            stroke(ind, ACC, 1)
             local indL = new("TextLabel", {
                 Size=UDim2.new(1,0,1,0), BackgroundTransparency=1,
                 Text=state and "1" or "0", TextColor3=state and WHITE or ACC,
@@ -1124,3 +1125,103 @@ function Library.CreateWindow()
 end
 
 return Library
+
+--[[
+================================================================
+  EXAMPLE
+================================================================
+
+local Library
+pcall(function() Library = loadstring(game:HttpGet("URL"))() end)
+if not Library then return end
+
+-- Pipe logs to your loader output panel:
+-- Library.Log = function(msg) loaderWindow:AddLine(msg) end
+
+local W = Library.CreateWindow()
+
+local T1 = W:AddTab("Ragebot")
+local T2 = W:AddTab("Visuals")
+local T3 = W:AddTab("Miscellaneous")
+local T4 = W:AddTab("Configuration")
+
+-- Ragebot tab
+local R1  = T1:AddSection("Ragebot", "Left")
+local sub = R1:AddSubTabs({"General","Target"})
+local sG  = sub:Tab("General")
+sG:AddToggle("Enabled", true, function(v) end)
+sG:AddKeybind("Activation key", "")
+sG:AddToggle("Silent", true)
+sG:AddToggle("Auto fire", true)
+sG:AddDropdown("Scope",{"Hitchance fail","Always","Never"},"Hitchance fail")
+local sT  = sub:Tab("Target")
+sT:AddToggle("Head", true)
+sT:AddToggle("Body", true)
+sT:AddToggle("Legs", false)
+
+local R2   = T1:AddSection("Anti-Aim", "Right")
+local subA = R2:AddSubTabs({"Anti-Aim","Fake Lag"})
+local sAA  = subA:Tab("Anti-Aim")
+sAA:AddToggle("Enabled", true)
+sAA:AddDropdown("Type",{"Adaptive","Static","Jitter"},"Adaptive")
+sAA:AddSlider("Choke",0,16,6)
+local sFL  = subA:Tab("Fake Lag")
+sFL:AddToggle("Enabled", false)
+sFL:AddSlider("Amount",0,16,4)
+
+-- Visuals tab
+local V1   = T2:AddSection("Player ESP","Left")
+local subE = V1:AddSubTabs({"General","Models","Extra"})
+local sE   = subE:Tab("General")
+sE:AddDropdown("Activation type",{"Always","Key hold","Key toggle"},"Always")
+sE:AddKeybind("Activation key","")
+sE:AddToggle("Dormant",false)
+sE:AddToggle("Bounding box",true,nil,Color3.fromRGB(200,30,30))
+sE:AddToggle("Name",true,nil,Color3.fromRGB(160,160,160))
+sE:AddToggle("Weapon",true,nil,Color3.fromRGB(160,160,160))
+sE:AddToggle("Health bar",false)
+sE:AddToggle("Ammo bar",true,nil,Color3.fromRGB(60,100,200))
+sE:AddToggle2("Glow",true,nil,{
+    {color=Color3.fromRGB(170,30,30), cb=function(c) end},
+    {color=Color3.fromRGB(255,160,50),cb=function(c) end},
+})
+
+local V2   = T2:AddSection("World ESP","Right")
+local subW = V2:AddSubTabs({"General","Extra"})
+local sW   = subW:Tab("General")
+sW:AddToggle("Dropped weapons",false)
+sW:AddToggle("Dropped weapons ammo",true,nil,Color3.fromRGB(60,100,200))
+sW:AddToggle("Objective",false)
+sW:AddToggle("Projectiles",false)
+
+local V3   = T2:AddSection("Effects","Right")
+local subF = V3:AddSubTabs({"General","Removals"})
+local sFx  = subF:Tab("General")
+sFx:AddSlider("Camera FOV",0,120,90)
+sFx:AddSlider("Weapon FOV",0,120,64)
+
+-- Misc tab
+local M1 = T3:AddSection("General","Left")
+M1:AddToggle("Thirdperson",true)
+M1:AddKeybind("Key","J")
+M1:AddToggle("Bunny hop",true)
+M1:AddSlider("Brightness",0,100,100,nil,"%")
+M1:AddDropdown("Hitsound",{"None","desu.wav","roblox.wav"},"None")
+M1:AddMultibox("Features",{"Bhop","Strafe","Zeus","Radar"},{"Bhop","Radar"})
+M1:AddColorPicker("ESP Color",Color3.fromRGB(200,40,40))
+
+-- Config tab
+local C1 = T4:AddSection("Profiles","Left")
+C1:AddProfileList({"default","dz","hvh","test"},function(n) end)
+local C2 = T4:AddSection("Configurations","Right")
+C2:AddButton("Save", function() Library.Notify("Saved!","Bottom",3) end)
+C2:AddButton("Load", function() end)
+C2:AddButton("Delete", function()
+    W:Dialog("Delete selected profile?",function(yes)
+        if yes then Library.Notify("Deleted.","Right",3) end
+    end)
+end, true)
+
+task.delay(1, function() Library.Notify("UI Loaded!", "Top", 4) end)
+
+]]
