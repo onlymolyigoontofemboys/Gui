@@ -1,0 +1,1126 @@
+--[[
+    Library  |  Insert = open/close
+
+    Components:
+        Window:AddTab(name)
+        Tab:AddSection(name, "Left"/"Right")
+        Section:AddSubTabs({names}, cb)
+        Section:AddToggle(label, default, cb, swatchColor, onSwatchChange)
+        Section:AddToggle2(label, default, cb, {{color=Color3, cb=fn}, ...})
+        Section:AddSlider(label, min, max, default, cb, suffix)
+        Section:AddDropdown(label, {opts}, default, cb)
+        Section:AddMultibox(label, {opts}, {defaults}, cb)
+        Section:AddKeybind(label, default, cb)
+        Section:AddColorPicker(label, Color3, cb)
+        Section:AddButton(label, cb, danger)
+        Section:AddLabel(text)
+        Section:AddSeparator()
+        Section:AddProfileList({names}, cb)
+        Window:Dialog(msg, cb)
+
+    SubTabs:
+        local sub = Section:AddSubTabs({"A","B"})
+        sub:Tab("A"):AddToggle(...)
+
+    Notify:
+        Library.Notify(text, pos, dur)   pos="Top"|"Bottom"|"Left"|"Right"
+
+    Log bridge:
+        Library.Log = function(msg) ... end  (default: print)
+]]
+
+local TS  = game:GetService("TweenService")
+local UIS = game:GetService("UserInputService")
+local CG  = game:GetService("CoreGui")
+
+-- ── Font ──────────────────────────────────────────────────
+local FONT
+do
+    local ok = pcall(function()
+        local f = "SmallestPixel.ttf"
+        if not isfile(f) then
+            writefile(f, game:HttpGet(
+                "https://raw.githubusercontent.com/onlymolyigoontofemboys/BETA/main/smallest_pixel-7.ttf"
+            ))
+        end
+        FONT = Font.new(getcustomasset(f))
+    end)
+    if not ok then
+        FONT = Font.new("rbxasset://fonts/families/RobotoMono.json")
+    end
+end
+
+-- ── Palette ───────────────────────────────────────────────
+local BG      = Color3.fromRGB(24,  24,  24)
+local BG_H    = Color3.fromRGB(18,  18,  18)
+local BG_ITEM = Color3.fromRGB(30,  30,  30)
+local BG_IN   = Color3.fromRGB(20,  20,  20)
+local BG_DARK = Color3.fromRGB(14,  14,  14)
+local ACC     = Color3.fromRGB(200, 40,  40)
+local ACC_LT  = Color3.fromRGB(230, 75,  75)
+local ACC_DK  = Color3.fromRGB(55,  10,  10)
+local BOR     = Color3.fromRGB(52,  52,  52)
+local BOR_LT  = Color3.fromRGB(72,  72,  72)
+local TXT     = Color3.fromRGB(200, 200, 200)
+local TXT_D   = Color3.fromRGB(80,  80,  80)
+local TXT_H   = Color3.fromRGB(235, 235, 235)
+local WHITE   = Color3.fromRGB(255, 255, 255)
+
+local FAST = TweenInfo.new(0.12, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
+local MED  = TweenInfo.new(0.20, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
+
+-- ── Micro-helpers ─────────────────────────────────────────
+local function tw(o, p, ti)
+    if not o or not o.Parent then return end
+    TS:Create(o, ti or FAST, p):Play()
+end
+
+local function new(cl, props, parent)
+    local o = Instance.new(cl)
+    for k, v in pairs(props) do o[k] = v end
+    if parent then o.Parent = parent end
+    return o
+end
+
+local function stroke(p, col, t)
+    local s = Instance.new("UIStroke")
+    s.Color = col or BOR; s.Thickness = t or 1
+    s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    s.Parent = p; return s
+end
+
+local function pad(p, t, b, l, r)
+    local u = Instance.new("UIPadding")
+    u.PaddingTop    = UDim.new(0, t or 0)
+    u.PaddingBottom = UDim.new(0, b or 0)
+    u.PaddingLeft   = UDim.new(0, l or 0)
+    u.PaddingRight  = UDim.new(0, r or 0)
+    u.Parent = p
+end
+
+local function vlist(p, gap)
+    local l = Instance.new("UIListLayout")
+    l.FillDirection = Enum.FillDirection.Vertical
+    l.SortOrder     = Enum.SortOrder.LayoutOrder
+    l.Padding       = UDim.new(0, gap or 0)
+    l.Parent = p; return l
+end
+
+local function hlist(p, gap)
+    local l = Instance.new("UIListLayout")
+    l.FillDirection = Enum.FillDirection.Horizontal
+    l.SortOrder     = Enum.SortOrder.LayoutOrder
+    l.Padding       = UDim.new(0, gap or 0)
+    l.Parent = p; return l
+end
+
+-- ── Connection registry ───────────────────────────────────
+-- All UIS global connections are tracked here and cleaned
+-- when the window ScreenGui is destroyed.
+local _globalConns = {}
+local function trackConn(c)
+    table.insert(_globalConns, c)
+end
+local function cleanAllConns()
+    for _, c in ipairs(_globalConns) do
+        pcall(function() c:Disconnect() end)
+    end
+    table.clear(_globalConns)
+end
+
+-- ── Slider ────────────────────────────────────────────────
+-- No global UIS listener. Uses a capture frame + local InputEnded
+-- on the capture frame so it dies automatically when frame is destroyed.
+local function makeSlider(track, fill, valLbl, minV, maxV, defV, sfx, cb, capParent)
+    sfx = sfx or ""
+    local val = math.clamp(defV or minV, minV, maxV)
+    local dead = false   -- set true when ScreenGui destroyed
+
+    local function setVal(v)
+        val = math.clamp(math.round(v * 10) / 10, minV, maxV)
+        local t = (val - minV) / (maxV - minV)
+        if fill and fill.Parent then fill.Size = UDim2.new(t, 0, 1, 0) end
+        if valLbl and valLbl.Parent then valLbl.Text = tostring(val) .. sfx end
+        if cb then cb(val) end
+    end
+    setVal(val)
+
+    local function getX(x)
+        if not track.Parent then return val end
+        local ax = track.AbsolutePosition.X
+        local aw = track.AbsoluteSize.X
+        if aw == 0 then return val end
+        return minV + math.clamp((x - ax) / aw, 0, 1) * (maxV - minV)
+    end
+
+    local hit = new("TextButton", {
+        Size=UDim2.new(1,0,0,16), Position=UDim2.new(0,0,0.5,-8),
+        BackgroundTransparency=1, Text="", ZIndex=10,
+    }, track)
+
+    local capF = nil
+    local function destroyCap()
+        if capF then
+            local f = capF; capF = nil
+            pcall(function() f:Destroy() end)
+        end
+    end
+
+    hit.MouseButton1Down:Connect(function(mx)
+        if dead then return end
+        destroyCap()
+        setVal(getX(mx))
+        capF = new("Frame", {
+            Size=UDim2.new(1,0,1,0),
+            BackgroundTransparency=1, ZIndex=9999,
+        }, capParent)
+        -- Use the capF's own input events — they die with the frame
+        capF.InputChanged:Connect(function(mi)
+            if dead then destroyCap(); return end
+            if mi.UserInputType == Enum.UserInputType.MouseMovement then
+                setVal(getX(mi.Position.X))
+            end
+        end)
+        capF.InputEnded:Connect(function(mi)
+            if mi.UserInputType == Enum.UserInputType.MouseButton1 then
+                destroyCap()
+            end
+        end)
+    end)
+
+    -- Fallback: one UIS.InputEnded per slider, tracked and cleaned on destroy
+    local c = UIS.InputEnded:Connect(function(i)
+        if dead then return end
+        if i.UserInputType == Enum.UserInputType.MouseButton1 then
+            destroyCap()
+        end
+    end)
+    trackConn(c)
+
+    local S = {}
+    function S:Set(v) if not dead then setVal(v) end end
+    function S:Get() return val end
+    function S:_kill() dead = true; destroyCap() end
+    return S
+end
+
+-- ── Color picker ──────────────────────────────────────────
+local function openColorPicker(sg, swatchBtn, initColor, cb)
+    local pendR, pendG, pendB = initColor.R, initColor.G, initColor.B
+
+    local apos = swatchBtn.AbsolutePosition
+    local asiz = swatchBtn.AbsoluteSize
+    local pw   = 192
+    local px   = apos.X + asiz.X + 6
+    local py   = apos.Y - 8
+    local vp   = workspace.CurrentCamera.ViewportSize
+    if px + pw > vp.X then px = apos.X - pw - 6 end
+    if py + 100 > vp.Y then py = vp.Y - 110 end
+
+    local pf = new("Frame", {
+        Size=UDim2.new(0,pw,0,0),
+        Position=UDim2.new(0,px,0,py),
+        BackgroundColor3=BG_ITEM, BorderSizePixel=0,
+        AutomaticSize=Enum.AutomaticSize.Y, ZIndex=300,
+    }, sg)
+    stroke(pf, BOR_LT, 1)
+    pad(pf, 8, 8, 10, 10)
+    vlist(pf, 6)
+
+    local prevFr = new("Frame", {
+        Size=UDim2.new(1,0,0,14),
+        BackgroundColor3=initColor, BorderSizePixel=0, ZIndex=301,
+    }, pf)
+    stroke(prevFr, BOR_LT, 1)
+
+    local chs = {
+        {l="R", get=function() return pendR end, set=function(v) pendR=v end, col=Color3.fromRGB(200,50,50)},
+        {l="G", get=function() return pendG end, set=function(v) pendG=v end, col=Color3.fromRGB(50,180,50)},
+        {l="B", get=function() return pendB end, set=function(v) pendB=v end, col=Color3.fromRGB(60,100,220)},
+    }
+
+    for _, ch in ipairs(chs) do
+        local cRow = new("Frame", {Size=UDim2.new(1,0,0,16),BackgroundTransparency=1,ZIndex=301}, pf)
+        new("TextLabel", {
+            Size=UDim2.new(0,10,1,0), BackgroundTransparency=1,
+            Text=ch.l, TextColor3=ch.col, FontFace=FONT, TextSize=10, ZIndex=302,
+        }, cRow)
+        local ct = new("Frame", {
+            Size=UDim2.new(1,-38,0,3), Position=UDim2.new(0,13,0.5,-1),
+            BackgroundColor3=BG_DARK, BorderSizePixel=0, ZIndex=302,
+        }, cRow)
+        local cf = new("Frame", {
+            Size=UDim2.new(ch.get(),0,1,0),
+            BackgroundColor3=ch.col, BorderSizePixel=0, ZIndex=303,
+        }, ct)
+        local cl = new("TextLabel", {
+            Size=UDim2.new(0,24,1,0), Position=UDim2.new(1,-24,0,-4),
+            BackgroundTransparency=1, Text=tostring(math.round(ch.get()*255)),
+            TextColor3=TXT_D, FontFace=FONT, TextSize=9, ZIndex=302,
+        }, cRow)
+
+        local hit2 = new("TextButton", {
+            Size=UDim2.new(1,0,0,16), Position=UDim2.new(0,0,0.5,-8),
+            BackgroundTransparency=1, Text="", ZIndex=310,
+        }, ct)
+
+        local capC = nil
+        local function destroyCapC()
+            if capC then local f=capC; capC=nil; pcall(function() f:Destroy() end) end
+        end
+        local function calcCol(x)
+            if not ct.Parent then return end
+            local t = math.clamp((x - ct.AbsolutePosition.X) / math.max(ct.AbsoluteSize.X,1), 0, 1)
+            ch.set(t)
+            cf.Size = UDim2.new(t,0,1,0)
+            cl.Text = tostring(math.round(t*255))
+            prevFr.BackgroundColor3 = Color3.new(pendR,pendG,pendB)
+        end
+
+        hit2.MouseButton1Down:Connect(function(mx)
+            destroyCapC()
+            calcCol(mx)
+            capC = new("Frame", {Size=UDim2.new(1,0,1,0),BackgroundTransparency=1,ZIndex=9999}, sg)
+            capC.InputChanged:Connect(function(mi)
+                if mi.UserInputType==Enum.UserInputType.MouseMovement then calcCol(mi.Position.X) end
+            end)
+            capC.InputEnded:Connect(function(mi)
+                if mi.UserInputType==Enum.UserInputType.MouseButton1 then destroyCapC() end
+            end)
+        end)
+
+        local uc = UIS.InputEnded:Connect(function(i)
+            if i.UserInputType==Enum.UserInputType.MouseButton1 then destroyCapC() end
+        end)
+        trackConn(uc)
+    end
+
+    local apply = new("TextButton", {
+        Size=UDim2.new(1,0,0,20), BackgroundColor3=ACC_DK, BorderSizePixel=0,
+        Text="APPLY", TextColor3=ACC_LT, FontFace=FONT, TextSize=11,
+        AutoButtonColor=false, ZIndex=301,
+    }, pf)
+    stroke(apply, ACC, 1)
+
+    apply.MouseButton1Click:Connect(function()
+        if cb then cb(Color3.new(pendR,pendG,pendB)) end
+        if pf.Parent then pf:Destroy() end
+    end)
+
+    return function()
+        if pf and pf.Parent then pf:Destroy() end
+    end
+end
+
+-- ── Notify ────────────────────────────────────────────────
+local NotifySG
+local ActiveNotifs = {}
+
+local function ensureNSG()
+    if NotifySG and NotifySG.Parent then return end
+    NotifySG = new("ScreenGui", {
+        Name="LibNotify", ResetOnSpawn=false,
+        ZIndexBehavior=Enum.ZIndexBehavior.Sibling, DisplayOrder=999,
+    }, CG)
+end
+
+local function reflow(pos)
+    local off = 0
+    for i = #ActiveNotifs, 1, -1 do
+        local f  = ActiveNotifs[i]
+        if not f.Parent then table.remove(ActiveNotifs,i); continue end
+        local fw = f.Size.X.Offset
+        local fh = f.Size.Y.Offset
+        local t
+        if     pos=="Top"    then t=UDim2.new(0.5,-fw/2, 0, 12+off)
+        elseif pos=="Bottom" then t=UDim2.new(0.5,-fw/2, 1,-12-fh-off)
+        elseif pos=="Left"   then t=UDim2.new(0,12, 0.5,-fh/2-off)
+        else                      t=UDim2.new(1,-fw-12, 0.5,-fh/2-off)
+        end
+        tw(f, {Position=t}, TweenInfo.new(0.18,Enum.EasingStyle.Quart,Enum.EasingDirection.Out))
+        off = off + fh + 5
+    end
+end
+
+-- ── Library ───────────────────────────────────────────────
+local Library = {}
+
+function Library.Log(msg)
+    print("[Library] " .. tostring(msg))
+end
+
+function Library.Notify(text, pos, dur)
+    pos = pos or "Right"
+    dur = dur or 3.5
+    ensureNSG()
+
+    local up = text:upper()
+    local dummy = new("TextLabel", {
+        Size=UDim2.new(0,600,0,20), Text=up,
+        FontFace=FONT, TextSize=12, Visible=false,
+    }, NotifySG)
+    local fw = math.max(120, dummy.TextBounds.X + 36)
+    dummy:Destroy()
+    local fh = 28
+
+    local sp
+    if     pos=="Top"    then sp=UDim2.new(0.5,-fw/2, 0,-fh-10)
+    elseif pos=="Bottom" then sp=UDim2.new(0.5,-fw/2, 1, fh+10)
+    elseif pos=="Left"   then sp=UDim2.new(0,-fw-10, 0.5,-fh/2)
+    else                      sp=UDim2.new(1, fw+10, 0.5,-fh/2)
+    end
+
+    local fr = new("Frame", {
+        Size=UDim2.new(0,fw,0,fh), Position=sp,
+        BackgroundColor3=BG_H, BorderSizePixel=0,
+        ClipsDescendants=true, ZIndex=100,
+    }, NotifySG)
+    stroke(fr, BOR, 1)
+    new("Frame", {Size=UDim2.new(0,2,1,0), BackgroundColor3=ACC, BorderSizePixel=0, ZIndex=101}, fr)
+    local lbl = new("TextLabel", {
+        Size=UDim2.new(1,-12,1,0), Position=UDim2.new(0,10,0,0),
+        BackgroundTransparency=1, Text="", TextColor3=TXT_H,
+        FontFace=FONT, TextSize=12,
+        TextXAlignment=Enum.TextXAlignment.Left, ZIndex=101,
+    }, fr)
+    local bar = new("Frame", {
+        Size=UDim2.new(1,0,0,1), Position=UDim2.new(0,0,1,-1),
+        BackgroundColor3=ACC, BorderSizePixel=0, ZIndex=102,
+    }, fr)
+
+    table.insert(ActiveNotifs, fr)
+    reflow(pos)
+    TS:Create(bar, TweenInfo.new(dur, Enum.EasingStyle.Linear), {Size=UDim2.new(0,0,0,1)}):Play()
+
+    task.spawn(function()
+        for i = 1, #up do
+            if not lbl.Parent then return end
+            lbl.Text = string.sub(up, 1, i)
+            task.wait(0.022)
+        end
+    end)
+
+    task.delay(dur, function()
+        for i, v in ipairs(ActiveNotifs) do
+            if v==fr then table.remove(ActiveNotifs,i); break end
+        end
+        reflow(pos)
+        if not fr.Parent then return end
+        local ep
+        local px2=fr.Position.X.Offset; local py2=fr.Position.Y.Offset
+        local xs=fr.Position.X.Scale;   local ys=fr.Position.Y.Scale
+        if     pos=="Top"    then ep=UDim2.new(xs,px2,0,-fh-10)
+        elseif pos=="Bottom" then ep=UDim2.new(xs,px2,1,fh+10)
+        elseif pos=="Left"   then ep=UDim2.new(0,-fw-10,ys,py2)
+        else                      ep=UDim2.new(1,fw+10,ys,py2)
+        end
+        local tt = TS:Create(fr, TweenInfo.new(0.25,Enum.EasingStyle.Quart,Enum.EasingDirection.In),
+            {Position=ep, BackgroundTransparency=1})
+        tt:Play()
+        tt.Completed:Connect(function() pcall(function() fr:Destroy() end) end)
+    end)
+end
+
+-- ── CreateWindow ─────────────────────────────────────────
+function Library.CreateWindow()
+    -- kill any leftover from previous run
+    local old = CG:FindFirstChild("Library")
+    if old then old:Destroy() end
+    cleanAllConns()  -- clean previous window's connections
+
+    local sg = new("ScreenGui", {
+        Name="Library", ResetOnSpawn=false,
+        ZIndexBehavior=Enum.ZIndexBehavior.Sibling,
+    }, CG)
+
+    -- When the ScreenGui is destroyed (script rerun / explicit destroy),
+    -- disconnect every global UIS connection this library created.
+    sg.Destroying:Connect(cleanAllConns)
+
+    local win = new("Frame", {
+        Size=UDim2.new(0,640,0,420),
+        Position=UDim2.new(0.5,-320,0.5,-210),
+        BackgroundColor3=BG, BorderSizePixel=0, ClipsDescendants=true,
+    }, sg)
+    stroke(win, BOR, 1)
+
+    local fadeOverlay = new("Frame", {
+        Size=UDim2.new(1,0,1,0), BackgroundColor3=Color3.fromRGB(0,0,0),
+        BackgroundTransparency=1, BorderSizePixel=0, ZIndex=500, Visible=false,
+    }, win)
+
+    local visible = true
+    do
+        local c = UIS.InputBegan:Connect(function(i, gpe)
+            if gpe then return end
+            if i.KeyCode ~= Enum.KeyCode.Insert then return end
+            if not win.Parent then return end
+            if visible then
+                visible = false
+                fadeOverlay.Visible = true
+                fadeOverlay.BackgroundTransparency = 1
+                tw(fadeOverlay, {BackgroundTransparency=0}, MED)
+                task.delay(0.22, function()
+                    if win.Parent then win.Visible=false end
+                    if fadeOverlay.Parent then fadeOverlay.Visible=false end
+                end)
+            else
+                visible = true
+                win.Visible = true
+                fadeOverlay.Visible = true
+                fadeOverlay.BackgroundTransparency = 0
+                tw(fadeOverlay, {BackgroundTransparency=1}, MED)
+                task.delay(0.22, function()
+                    if fadeOverlay.Parent then fadeOverlay.Visible=false end
+                end)
+            end
+        end)
+        trackConn(c)
+    end
+
+    -- drag
+    local header = new("Frame", {
+        Size=UDim2.new(1,0,0,36), BackgroundColor3=BG_H,
+        BorderSizePixel=0, ZIndex=5,
+    }, win)
+    new("Frame", {
+        Size=UDim2.new(1,0,0,1), Position=UDim2.new(0,0,1,-1),
+        BackgroundColor3=BOR, BorderSizePixel=0, ZIndex=5,
+    }, header)
+    do
+        local drag=false; local ds,sp2=nil,nil
+        header.InputBegan:Connect(function(i)
+            if i.UserInputType==Enum.UserInputType.MouseButton1 then
+                drag=true; ds=i.Position; sp2=win.Position
+            end
+        end)
+        local c1 = UIS.InputChanged:Connect(function(i)
+            if drag and i.UserInputType==Enum.UserInputType.MouseMovement and win.Parent then
+                local d=i.Position-ds
+                win.Position=UDim2.new(sp2.X.Scale,sp2.X.Offset+d.X,sp2.Y.Scale,sp2.Y.Offset+d.Y)
+            end
+        end)
+        local c2 = UIS.InputEnded:Connect(function(i)
+            if i.UserInputType==Enum.UserInputType.MouseButton1 then drag=false end
+        end)
+        trackConn(c1); trackConn(c2)
+    end
+
+    local tabRow = new("Frame", {
+        Size=UDim2.new(1,0,1,0), BackgroundTransparency=1, ZIndex=6,
+    }, header)
+    hlist(tabRow, 0)
+
+    local content = new("Frame", {
+        Size=UDim2.new(1,0,1,-36), Position=UDim2.new(0,0,0,36),
+        BackgroundTransparency=1, ClipsDescendants=true,
+    }, win)
+
+    local Window    = {}
+    local activeTab = nil
+    local tabCount  = 0
+
+    local function activateTab(tab)
+        if activeTab==tab then return end
+        if activeTab then
+            activeTab.frame.Visible=false
+            tw(activeTab.btn, {TextColor3=TXT_D})
+            activeTab.line.BackgroundTransparency=1
+        end
+        activeTab=tab
+        tab.frame.Visible=true
+        tw(tab.btn, {TextColor3=TXT_H})
+        tw(tab.line, {BackgroundTransparency=0})
+        Library.Log("Tab -> " .. tab.name)
+    end
+
+    -- Dialog
+    local dlgOv = new("Frame", {
+        Size=UDim2.new(1,0,1,0), BackgroundColor3=Color3.fromRGB(0,0,0),
+        BackgroundTransparency=1, BorderSizePixel=0, Visible=false, ZIndex=50,
+    }, win)
+    local dlgBox = new("Frame", {
+        Size=UDim2.new(0,300,0,80), Position=UDim2.new(0.5,-150,0.5,-40),
+        BackgroundColor3=BG, BorderSizePixel=0, ZIndex=51,
+    }, dlgOv)
+    stroke(dlgBox, BOR_LT, 1)
+    local dlgTxt = new("TextLabel", {
+        Size=UDim2.new(1,-20,0,36), Position=UDim2.new(0,10,0,8),
+        BackgroundTransparency=1, Text="", TextColor3=TXT,
+        FontFace=FONT, TextSize=12, TextWrapped=true, ZIndex=52,
+    }, dlgBox)
+    local dlgY = new("TextButton", {
+        Size=UDim2.new(0,76,0,20), Position=UDim2.new(0.5,-80,1,-28),
+        BackgroundColor3=ACC_DK, BorderSizePixel=0,
+        Text="YES", TextColor3=ACC_LT, FontFace=FONT, TextSize=11,
+        AutoButtonColor=false, ZIndex=52,
+    }, dlgBox)
+    stroke(dlgY, ACC, 1)
+    local dlgN = new("TextButton", {
+        Size=UDim2.new(0,76,0,20), Position=UDim2.new(0.5,4,1,-28),
+        BackgroundColor3=BG_ITEM, BorderSizePixel=0,
+        Text="NO", TextColor3=TXT, FontFace=FONT, TextSize=11,
+        AutoButtonColor=false, ZIndex=52,
+    }, dlgBox)
+    stroke(dlgN, BOR, 1)
+    local dlgCb=nil
+    local function closeDlg(r)
+        tw(dlgOv, {BackgroundTransparency=1})
+        task.delay(0.18, function()
+            if dlgOv.Parent then dlgOv.Visible=false end
+        end)
+        if dlgCb then dlgCb(r); dlgCb=nil end
+        Library.Log("Dialog -> " .. tostring(r))
+    end
+    dlgY.MouseButton1Click:Connect(function() closeDlg(true) end)
+    dlgN.MouseButton1Click:Connect(function() closeDlg(false) end)
+    function Window:Dialog(msg, cb)
+        dlgTxt.Text=msg:upper(); dlgCb=cb
+        dlgOv.Visible=true
+        tw(dlgOv, {BackgroundTransparency=0.6})
+        Library.Log("Dialog: " .. msg)
+    end
+
+    -- ────────────────────────────────────────────────────────
+    --  buildSection
+    -- ────────────────────────────────────────────────────────
+    local function buildSection(container, sName, showTitle)
+        local items
+
+        if showTitle then
+            local wrapper = new("Frame", {
+                Size=UDim2.new(1,0,0,0), BackgroundTransparency=1,
+                AutomaticSize=Enum.AutomaticSize.Y,
+            }, container)
+            vlist(wrapper, 4)
+            if sName and sName ~= "" then
+                new("TextLabel", {
+                    Size=UDim2.new(1,0,0,14), BackgroundTransparency=1,
+                    Text=sName:upper(), TextColor3=TXT_D,
+                    FontFace=FONT, TextSize=10,
+                    TextXAlignment=Enum.TextXAlignment.Left,
+                }, wrapper)
+            end
+            items = new("Frame", {
+                Size=UDim2.new(1,0,0,0), BackgroundTransparency=1,
+                AutomaticSize=Enum.AutomaticSize.Y,
+            }, wrapper)
+            vlist(items, 3)
+        else
+            items = new("Frame", {
+                Size=UDim2.new(1,0,0,0), BackgroundTransparency=1,
+                AutomaticSize=Enum.AutomaticSize.Y,
+            }, container)
+            vlist(items, 3)
+        end
+
+        local Section = {}
+
+        -- SubTabs
+        function Section:AddSubTabs(tabList, cb)
+            local btnRow = new("Frame", {Size=UDim2.new(1,0,0,22),BackgroundTransparency=1}, items)
+            hlist(btnRow, 4)
+            local tabs2={}, activeSub=nil
+
+            for idx, tName in ipairs(tabList) do
+                local cont = new("Frame", {
+                    Size=UDim2.new(1,0,0,0), BackgroundTransparency=1,
+                    AutomaticSize=Enum.AutomaticSize.Y, Visible=(idx==1),
+                }, items)
+                vlist(cont, 3)
+                local first = (idx==1)
+                local sb = new("TextButton", {
+                    Size=UDim2.new(0,0,1,0), AutomaticSize=Enum.AutomaticSize.X,
+                    BackgroundColor3=first and ACC_DK or BG_ITEM,
+                    BorderSizePixel=0, Text=tName:upper(),
+                    TextColor3=first and TXT_H or TXT_D,
+                    FontFace=FONT, TextSize=11, AutoButtonColor=false,
+                }, btnRow)
+                pad(sb, 3, 3, 8, 8)
+                local ss = stroke(sb, first and ACC or BOR, 1)
+                tabs2[tName] = {btn=sb, str=ss, cont=cont}
+                if first then activeSub=tName end
+                sb.MouseButton1Click:Connect(function()
+                    if activeSub then
+                        local p=tabs2[activeSub]
+                        tw(p.btn,{TextColor3=TXT_D,BackgroundColor3=BG_ITEM})
+                        p.str.Color=BOR; p.cont.Visible=false
+                    end
+                    activeSub=tName
+                    tw(sb,{TextColor3=TXT_H,BackgroundColor3=ACC_DK})
+                    ss.Color=ACC; cont.Visible=true
+                    if cb then cb(tName) end
+                    Library.Log("SubTab -> "..tName)
+                end)
+            end
+
+            local Sub={}
+            function Sub:Tab(n)
+                local e=tabs2[n]; if not e then return end
+                return buildSection(e.cont,"",false)
+            end
+            return Sub
+        end
+
+        -- Toggle (shared)
+        local function buildToggleRow(label, default, cb, swatchDefs, logName)
+            local state = default==true
+            local sc    = #swatchDefs
+            local SW    = 18
+
+            local row = new("Frame", {Size=UDim2.new(1,0,0,20),BackgroundTransparency=1}, items)
+
+            local ind = new("Frame", {
+                Size=UDim2.new(0,14,0,14), Position=UDim2.new(0,0,0.5,-7),
+                BackgroundColor3=state and ACC or BG_DARK, BorderSizePixel=0,
+            }, row)
+            local indS = stroke(ind, ACC, 1)
+            local indL = new("TextLabel", {
+                Size=UDim2.new(1,0,1,0), BackgroundTransparency=1,
+                Text=state and "1" or "0", TextColor3=state and WHITE or ACC,
+                FontFace=FONT, TextSize=9,
+            }, ind)
+
+            local mainL = new("TextLabel", {
+                Size=UDim2.new(1,-(18+sc*(SW+3)+4),1,0),
+                Position=UDim2.new(0,18,0,0),
+                BackgroundTransparency=1, Text=label:upper(),
+                TextColor3=state and TXT_H or TXT,
+                FontFace=FONT, TextSize=12,
+                TextXAlignment=Enum.TextXAlignment.Left,
+            }, row)
+
+            for idx, sd in ipairs(swatchDefs) do
+                local cur=sd.color or ACC; local swCb=sd.cb
+                local pOpen=false; local closePick=nil
+                local ox = -(idx*(SW+3)) + 3 - SW
+                local sw = new("TextButton", {
+                    Size=UDim2.new(0,SW,0,14), Position=UDim2.new(1,ox,0.5,-7),
+                    BackgroundColor3=cur, BorderSizePixel=0,
+                    Text="", AutoButtonColor=false, ZIndex=8,
+                }, row)
+                stroke(sw, BOR_LT, 1)
+                sw.MouseButton1Click:Connect(function()
+                    pOpen=not pOpen
+                    if closePick then closePick(); closePick=nil end
+                    if not pOpen then return end
+                    closePick=openColorPicker(sg,sw,cur,function(c)
+                        cur=c; sw.BackgroundColor3=c
+                        pOpen=false; closePick=nil
+                        if swCb then swCb(c) end
+                        Library.Log(logName.." color -> "..tostring(c))
+                    end)
+                end)
+            end
+
+            local caOff = sc>0 and -(sc*(SW+3)+4) or -4
+            local ca = new("TextButton", {
+                Size=UDim2.new(1,caOff,1,0),
+                BackgroundTransparency=1, Text="", ZIndex=5,
+            }, row)
+
+            ca.MouseButton1Click:Connect(function()
+                state=not state
+                tw(ind,  {BackgroundColor3=state and ACC or BG_DARK})
+                indL.Text       = state and "1" or "0"
+                indL.TextColor3 = state and WHITE or ACC
+                tw(mainL,{TextColor3=state and TXT_H or TXT})
+                if cb then cb(state) end
+                Library.Log(logName.." -> "..tostring(state))
+            end)
+
+            local T={}
+            function T:Set(v)
+                state=v
+                ind.BackgroundColor3 = state and ACC or BG_DARK
+                indL.Text       = state and "1" or "0"
+                indL.TextColor3 = state and WHITE or ACC
+                if mainL.Parent then mainL.TextColor3=state and TXT_H or TXT end
+            end
+            function T:Get() return state end
+            return T
+        end
+
+        function Section:AddToggle(label, default, cb, swatchColor, onSwatchChange)
+            local defs = swatchColor and {{color=swatchColor,cb=onSwatchChange}} or {}
+            return buildToggleRow(label, default, cb, defs, label)
+        end
+
+        function Section:AddToggle2(label, default, cb, swatches)
+            return buildToggleRow(label, default, cb, swatches or {}, label)
+        end
+
+        -- Slider
+        function Section:AddSlider(label, minV, maxV, defV, cb, sfx)
+            local wrap = new("Frame", {Size=UDim2.new(1,0,0,30),BackgroundTransparency=1}, items)
+            local lr   = new("Frame", {Size=UDim2.new(1,0,0,13),BackgroundTransparency=1}, wrap)
+            new("TextLabel", {
+                Size=UDim2.new(1,-30,1,0), BackgroundTransparency=1,
+                Text=label:upper(), TextColor3=TXT_D,
+                FontFace=FONT, TextSize=10,
+                TextXAlignment=Enum.TextXAlignment.Left,
+            }, lr)
+            local vLbl = new("TextLabel", {
+                Size=UDim2.new(0,28,1,0), Position=UDim2.new(1,-28,0,0),
+                BackgroundTransparency=1, Text="",
+                TextColor3=TXT, FontFace=FONT, TextSize=10,
+                TextXAlignment=Enum.TextXAlignment.Right,
+            }, lr)
+            local tr = new("Frame", {
+                Size=UDim2.new(1,0,0,3), Position=UDim2.new(0,0,0,19),
+                BackgroundColor3=BG_DARK, BorderSizePixel=0,
+            }, wrap)
+            stroke(tr, BOR, 1)
+            local fi = new("Frame", {
+                Size=UDim2.new(0,0,1,0), BackgroundColor3=ACC, BorderSizePixel=0,
+            }, tr)
+            return makeSlider(tr, fi, vLbl, minV, maxV, defV, sfx, function(v)
+                if cb then cb(v) end
+                Library.Log(label.." -> "..tostring(v))
+            end, sg)
+        end
+
+        -- Dropdown
+        function Section:AddDropdown(label, options, default, cb)
+            local sel=default or options[1]; local open=false
+            local wrap=new("Frame",{Size=UDim2.new(1,0,0,38),BackgroundTransparency=1,ClipsDescendants=false,ZIndex=3},items)
+            new("TextLabel",{Size=UDim2.new(1,0,0,13),BackgroundTransparency=1,Text=label:upper(),TextColor3=TXT_D,FontFace=FONT,TextSize=10,TextXAlignment=Enum.TextXAlignment.Left,ZIndex=3},wrap)
+            local selBtn=new("TextButton",{Size=UDim2.new(1,0,0,20),Position=UDim2.new(0,0,0,14),BackgroundColor3=BG_IN,BorderSizePixel=0,Text=sel:upper().."  V",TextColor3=TXT,FontFace=FONT,TextSize=11,TextXAlignment=Enum.TextXAlignment.Left,AutoButtonColor=false,ZIndex=4},wrap)
+            pad(selBtn,0,0,7,0); stroke(selBtn,BOR,1)
+            local listF=new("Frame",{Size=UDim2.new(1,0,0,0),Position=UDim2.new(0,0,0,35),BackgroundColor3=BG_IN,BorderSizePixel=0,ClipsDescendants=true,ZIndex=20,Visible=false},wrap)
+            stroke(listF,BOR,1); vlist(listF,0)
+            local function closeDD()
+                open=false; tw(listF,{Size=UDim2.new(1,0,0,0)})
+                task.delay(0.14,function() if not open and listF.Parent then listF.Visible=false end end)
+                wrap.Size=UDim2.new(1,0,0,38)
+            end
+            for _,opt in ipairs(options) do
+                local ob=new("TextButton",{Size=UDim2.new(1,0,0,20),BackgroundTransparency=1,Text=opt:upper(),TextColor3=opt==sel and ACC_LT or TXT,FontFace=FONT,TextSize=11,TextXAlignment=Enum.TextXAlignment.Left,AutoButtonColor=false,ZIndex=21},listF)
+                pad(ob,0,0,7,0)
+                ob.MouseEnter:Connect(function() ob.BackgroundTransparency=0; ob.BackgroundColor3=Color3.fromRGB(36,10,10) end)
+                ob.MouseLeave:Connect(function() ob.BackgroundTransparency=1 end)
+                ob.MouseButton1Click:Connect(function()
+                    sel=opt; selBtn.Text=opt:upper().."  V"
+                    for _,c in ipairs(listF:GetChildren()) do
+                        if c:IsA("TextButton") then c.TextColor3=(c.Text==opt:upper()) and ACC_LT or TXT end
+                    end
+                    if cb then cb(opt) end; closeDD()
+                    Library.Log(label.." -> "..opt)
+                end)
+            end
+            selBtn.MouseButton1Click:Connect(function()
+                open=not open
+                if open then listF.Visible=true; tw(listF,{Size=UDim2.new(1,0,0,#options*20)}); wrap.Size=UDim2.new(1,0,0,38+#options*20)
+                else closeDD() end
+            end)
+            local D={}; function D:Set(v) sel=v; selBtn.Text=v:upper().."  V" end; function D:Get() return sel end
+            return D
+        end
+
+        -- Multibox
+        function Section:AddMultibox(label, options, defaults, cb)
+            local checked={}
+            for _,o in ipairs(options) do checked[o]=defaults and (table.find(defaults,o)~=nil) or false end
+            local open=false
+            local function getL()
+                local s={}; for _,o in ipairs(options) do if checked[o] then table.insert(s,o) end end
+                return #s==0 and "NONE" or table.concat(s,", "):upper()
+            end
+            local wrap=new("Frame",{Size=UDim2.new(1,0,0,38),BackgroundTransparency=1,ClipsDescendants=false,ZIndex=3},items)
+            new("TextLabel",{Size=UDim2.new(1,0,0,13),BackgroundTransparency=1,Text=label:upper(),TextColor3=TXT_D,FontFace=FONT,TextSize=10,TextXAlignment=Enum.TextXAlignment.Left,ZIndex=3},wrap)
+            local selBtn=new("TextButton",{Size=UDim2.new(1,0,0,20),Position=UDim2.new(0,0,0,14),BackgroundColor3=BG_IN,BorderSizePixel=0,Text=getL().."  V",TextColor3=TXT,FontFace=FONT,TextSize=11,TextXAlignment=Enum.TextXAlignment.Left,AutoButtonColor=false,ZIndex=4},wrap)
+            pad(selBtn,0,0,7,0); stroke(selBtn,BOR,1)
+            local listF=new("Frame",{Size=UDim2.new(1,0,0,0),Position=UDim2.new(0,0,0,35),BackgroundColor3=BG_IN,BorderSizePixel=0,ClipsDescendants=true,ZIndex=20,Visible=false},wrap)
+            stroke(listF,BOR,1); vlist(listF,0)
+            local function closeMB()
+                open=false; tw(listF,{Size=UDim2.new(1,0,0,0)})
+                task.delay(0.14,function() if not open and listF.Parent then listF.Visible=false end end)
+                wrap.Size=UDim2.new(1,0,0,38)
+            end
+            for _,opt in ipairs(options) do
+                local r2=new("Frame",{Size=UDim2.new(1,0,0,20),BackgroundTransparency=1,ZIndex=21},listF)
+                local b2=new("Frame",{Size=UDim2.new(0,10,0,10),Position=UDim2.new(0,7,0.5,-5),BackgroundColor3=checked[opt] and ACC or BG_DARK,BorderSizePixel=0,ZIndex=22},r2)
+                stroke(b2,ACC,1)
+                local tk2=new("TextLabel",{Size=UDim2.new(1,0,1,0),BackgroundTransparency=1,Text=checked[opt] and "1" or "0",TextColor3=checked[opt] and WHITE or ACC,FontFace=FONT,TextSize=8,ZIndex=23},b2)
+                new("TextLabel",{Size=UDim2.new(1,-26,1,0),Position=UDim2.new(0,24,0,0),BackgroundTransparency=1,Text=opt:upper(),TextColor3=TXT,FontFace=FONT,TextSize=11,TextXAlignment=Enum.TextXAlignment.Left,ZIndex=22},r2)
+                local rb=new("TextButton",{Size=UDim2.new(1,0,1,0),BackgroundTransparency=1,Text="",ZIndex=24},r2)
+                rb.MouseEnter:Connect(function() r2.BackgroundTransparency=0; r2.BackgroundColor3=Color3.fromRGB(36,10,10) end)
+                rb.MouseLeave:Connect(function() r2.BackgroundTransparency=1 end)
+                rb.MouseButton1Click:Connect(function()
+                    checked[opt]=not checked[opt]
+                    b2.BackgroundColor3=checked[opt] and ACC or BG_DARK
+                    tk2.Text=checked[opt] and "1" or "0"; tk2.TextColor3=checked[opt] and WHITE or ACC
+                    selBtn.Text=getL().."  V"
+                    if cb then cb(checked) end
+                    Library.Log(label.." ["..opt.."] -> "..tostring(checked[opt]))
+                end)
+            end
+            selBtn.MouseButton1Click:Connect(function()
+                open=not open
+                if open then listF.Visible=true; tw(listF,{Size=UDim2.new(1,0,0,#options*20)}); wrap.Size=UDim2.new(1,0,0,38+#options*20)
+                else closeMB() end
+            end)
+            local M={}; function M:Get() return checked end
+            function M:SetOption(o,v) checked[o]=v; selBtn.Text=getL().."  V" end
+            return M
+        end
+
+        -- ──────────────────────────────────────────────────────
+        --  Keybind  — FIXED
+        --
+        --  Root cause of ALL previous bugs:
+        --    Old code created a new UIS.InputBegan connection every
+        --    time the user clicked the button. After N clicks there
+        --    were N live listeners, all with independent `waiting`
+        --    closures → they fired on top of each other, captured
+        --    random inputs, and called cb() multiple times.
+        --
+        --  Fix:
+        --    • ONE connection created once, tracked, never duplicated.
+        --    • `waiting` flag guards it.
+        --    • Connection is registered in `_globalConns` → cleaned
+        --      when the ScreenGui is destroyed (sg.Destroying fires
+        --      cleanAllConns).
+        --    • MB1 is explicitly blocked during capture so clicking
+        --      the button to cancel doesn't accidentally set MB1.
+        --    • Insert is in IGNORED so it never captures the UI key.
+        -- ──────────────────────────────────────────────────────
+        function Section:AddKeybind(label, default, cb)
+            local key     = default or ""
+            local waiting = false
+            local alive   = true   -- set false when sg destroyed
+
+            local IGNORED = {
+                Unknown=true, Insert=true,
+                LeftShift=true,   RightShift=true,
+                LeftControl=true, RightControl=true,
+                LeftAlt=true,     RightAlt=true,
+                LeftMeta=true,    RightMeta=true,
+                CapsLock=true, NumLock=true, ScrollLock=true,
+            }
+            local MOUSE = {
+                [Enum.UserInputType.MouseButton2]="MB2",
+                [Enum.UserInputType.MouseButton3]="MB3",
+            }
+
+            local wrap = new("Frame", {Size=UDim2.new(1,0,0,38),BackgroundTransparency=1}, items)
+            new("TextLabel", {
+                Size=UDim2.new(1,0,0,13), BackgroundTransparency=1,
+                Text=label:upper(), TextColor3=TXT_D,
+                FontFace=FONT, TextSize=10,
+                TextXAlignment=Enum.TextXAlignment.Left,
+            }, wrap)
+            local bb = new("TextButton", {
+                Size=UDim2.new(0.55,0,0,20), Position=UDim2.new(0,0,0,14),
+                BackgroundColor3=BG_IN, BorderSizePixel=0,
+                Text=key=="" and "[ ... ]" or "[ "..key:upper().." ]",
+                TextColor3=TXT, FontFace=FONT, TextSize=11,
+                AutoButtonColor=false,
+            }, wrap)
+            stroke(bb, BOR, 1)
+            local xb = new("TextButton", {
+                Size=UDim2.new(0,16,0,16), Position=UDim2.new(0.55,4,0,16),
+                BackgroundColor3=BG_ITEM, BorderSizePixel=0,
+                Text="X", TextColor3=TXT_D, FontFace=FONT, TextSize=9,
+                AutoButtonColor=false, Visible=key~="",
+            }, wrap)
+            stroke(xb, BOR, 1)
+
+            local function setDisplay()
+                if not bb.Parent then return end
+                bb.Text      = key=="" and "[ ... ]" or "[ "..key:upper().." ]"
+                bb.TextColor3= TXT
+            end
+
+            local function stopCapture()
+                waiting = false
+                setDisplay()
+            end
+
+            local function capture(name)
+                key = name
+                stopCapture()
+                if xb.Parent then xb.Visible=true end
+                if cb then cb(key) end
+                Library.Log(label.." keybind -> "..key)
+            end
+
+            -- THE ONLY UIS.InputBegan connection for this keybind.
+            -- Created once, lives until the window is destroyed.
+            local kc = UIS.InputBegan:Connect(function(i)
+                -- guard: only active, only while waiting
+                if not alive or not waiting then return end
+
+                -- block MB1: that's the cancel click on bb itself
+                if i.UserInputType == Enum.UserInputType.MouseButton1 then
+                    return
+                end
+
+                -- MB2 / MB3
+                local mt = MOUSE[i.UserInputType]
+                if mt then capture(mt); return end
+
+                -- Keyboard
+                if i.UserInputType == Enum.UserInputType.Keyboard then
+                    local kn = i.KeyCode.Name
+                    if not IGNORED[kn] then
+                        capture(kn)
+                    end
+                end
+            end)
+            trackConn(kc)
+
+            -- mark dead when sg is destroyed so the conn body is a no-op
+            sg.Destroying:Connect(function() alive=false end)
+
+            bb.MouseButton1Click:Connect(function()
+                if not alive then return end
+                if waiting then
+                    stopCapture()
+                else
+                    waiting       = true
+                    bb.Text       = "[ ? ]"
+                    bb.TextColor3 = ACC_LT
+                end
+            end)
+
+            xb.MouseButton1Click:Connect(function()
+                if not alive then return end
+                waiting = false
+                key     = ""
+                setDisplay()
+                if xb.Parent then xb.Visible=false end
+                if cb then cb(key) end
+                Library.Log(label.." keybind cleared")
+            end)
+
+            local K={}
+            function K:Get() return key end
+            function K:Set(v)
+                key=v; waiting=false
+                setDisplay()
+                if xb.Parent then xb.Visible=v~="" end
+            end
+            return K
+        end
+
+        -- ColorPicker
+        function Section:AddColorPicker(label, defaultColor, cb)
+            local color=defaultColor or Color3.fromRGB(255,255,255)
+            local pOpen=false; local closePick=nil
+            local row=new("Frame",{Size=UDim2.new(1,0,0,20),BackgroundTransparency=1},items)
+            new("TextLabel",{Size=UDim2.new(1,-28,1,0),BackgroundTransparency=1,Text=label:upper(),TextColor3=TXT,FontFace=FONT,TextSize=12,TextXAlignment=Enum.TextXAlignment.Left},row)
+            local sw=new("TextButton",{Size=UDim2.new(0,22,0,14),Position=UDim2.new(1,-22,0.5,-7),BackgroundColor3=color,BorderSizePixel=0,Text="",AutoButtonColor=false,ZIndex=5},row)
+            stroke(sw,BOR_LT,1)
+            sw.MouseButton1Click:Connect(function()
+                pOpen=not pOpen
+                if closePick then closePick(); closePick=nil end
+                if not pOpen then return end
+                closePick=openColorPicker(sg,sw,color,function(c)
+                    color=c; sw.BackgroundColor3=c; pOpen=false; closePick=nil
+                    if cb then cb(c) end
+                    Library.Log(label.." color -> "..tostring(c))
+                end)
+            end)
+            local CP={}; function CP:Set(c) color=c; sw.BackgroundColor3=c end; function CP:Get() return color end
+            return CP
+        end
+
+        -- Button
+        function Section:AddButton(label, cb, danger)
+            local btn=new("TextButton",{
+                Size=UDim2.new(1,0,0,22),
+                BackgroundColor3=danger and ACC_DK or BG_ITEM,
+                BorderSizePixel=0, Text=label:upper(),
+                TextColor3=danger and ACC_LT or TXT,
+                FontFace=FONT, TextSize=11, AutoButtonColor=false,
+            },items)
+            stroke(btn, danger and ACC or BOR, 1)
+            btn.MouseEnter:Connect(function()
+                tw(btn,{BackgroundColor3=danger and Color3.fromRGB(70,12,12) or Color3.fromRGB(38,38,38),
+                    TextColor3=danger and ACC_LT or TXT_H})
+            end)
+            btn.MouseLeave:Connect(function()
+                tw(btn,{BackgroundColor3=danger and ACC_DK or BG_ITEM, TextColor3=danger and ACC_LT or TXT})
+            end)
+            btn.MouseButton1Click:Connect(function()
+                tw(btn,{BackgroundColor3=danger and Color3.fromRGB(80,10,10) or Color3.fromRGB(48,48,48)})
+                task.delay(0.1,function() if btn.Parent then tw(btn,{BackgroundColor3=danger and ACC_DK or BG_ITEM}) end end)
+                if cb then cb() end
+                Library.Log("Button: "..label)
+            end)
+        end
+
+        -- Label
+        function Section:AddLabel(text)
+            new("TextLabel",{Size=UDim2.new(1,0,0,14),BackgroundTransparency=1,Text=text:upper(),TextColor3=TXT_D,FontFace=FONT,TextSize=10,TextXAlignment=Enum.TextXAlignment.Left},items)
+        end
+
+        -- Separator
+        function Section:AddSeparator()
+            new("Frame",{Size=UDim2.new(1,0,0,1),BackgroundColor3=BOR,BorderSizePixel=0},items)
+        end
+
+        -- ProfileList
+        function Section:AddProfileList(list, cb)
+            local h=math.min(#list*22,150)
+            local cont=new("ScrollingFrame",{Size=UDim2.new(1,0,0,h),BackgroundColor3=BG_IN,BorderSizePixel=0,ScrollBarThickness=2,ScrollBarImageColor3=BOR,CanvasSize=UDim2.new(0,0,0,0),AutomaticCanvasSize=Enum.AutomaticSize.Y},items)
+            stroke(cont,BOR,1); vlist(cont,0); local selP=nil
+            for _,n in ipairs(list) do
+                local pb=new("TextButton",{Size=UDim2.new(1,0,0,22),BackgroundTransparency=1,Text=n:upper(),TextColor3=TXT,FontFace=FONT,TextSize=11,TextXAlignment=Enum.TextXAlignment.Left,AutoButtonColor=false},cont)
+                pad(pb,0,0,8,0)
+                pb.MouseEnter:Connect(function() if selP~=pb then pb.BackgroundTransparency=0; pb.BackgroundColor3=Color3.fromRGB(34,34,34) end end)
+                pb.MouseLeave:Connect(function() if selP~=pb then pb.BackgroundTransparency=1 end end)
+                pb.MouseButton1Click:Connect(function()
+                    if selP then selP.TextColor3=TXT; selP.BackgroundTransparency=1 end
+                    selP=pb; pb.TextColor3=ACC_LT; pb.BackgroundTransparency=0; pb.BackgroundColor3=Color3.fromRGB(40,10,10)
+                    if cb then cb(n) end
+                    Library.Log("Profile: "..n)
+                end)
+            end
+        end
+
+        return Section
+    end
+
+    -- AddTab
+    function Window:AddTab(name)
+        tabCount=tabCount+1
+        local tab={name=name}
+        local btn=new("TextButton",{
+            Size=UDim2.new(0,0,1,0),AutomaticSize=Enum.AutomaticSize.X,
+            BackgroundTransparency=1,Text=name:upper(),TextColor3=TXT_D,
+            FontFace=FONT,TextSize=12,AutoButtonColor=false,BorderSizePixel=0,ZIndex=6,
+        },tabRow)
+        pad(btn,0,0,16,16)
+        local line=new("Frame",{
+            Size=UDim2.new(1,0,0,2),Position=UDim2.new(0,0,1,-2),
+            BackgroundColor3=ACC,BackgroundTransparency=1,BorderSizePixel=0,ZIndex=7,
+        },btn)
+        new("Frame",{Size=UDim2.new(0,1,0.5,0),Position=UDim2.new(1,-1,0.25,0),BackgroundColor3=BOR,BorderSizePixel=0,ZIndex=6},btn)
+        local frame=new("Frame",{Size=UDim2.new(1,0,1,0),BackgroundTransparency=1,Visible=false},content)
+        local lS=new("ScrollingFrame",{Size=UDim2.new(0.5,-1,1,0),BackgroundTransparency=1,BorderSizePixel=0,ScrollBarThickness=2,ScrollBarImageColor3=BOR,CanvasSize=UDim2.new(0,0,0,0),AutomaticCanvasSize=Enum.AutomaticSize.Y},frame)
+        pad(lS,12,12,12,10); vlist(lS,8)
+        new("Frame",{Size=UDim2.new(0,1,1,0),Position=UDim2.new(0.5,0,0,0),BackgroundColor3=BOR,BorderSizePixel=0},frame)
+        local rS=new("ScrollingFrame",{Size=UDim2.new(0.5,-1,1,0),Position=UDim2.new(0.5,1,0,0),BackgroundTransparency=1,BorderSizePixel=0,ScrollBarThickness=2,ScrollBarImageColor3=BOR,CanvasSize=UDim2.new(0,0,0,0),AutomaticCanvasSize=Enum.AutomaticSize.Y},frame)
+        pad(rS,12,12,12,10); vlist(rS,8)
+        tab.btn=btn; tab.line=line; tab.frame=frame; tab.left=lS; tab.right=rS
+        btn.MouseButton1Click:Connect(function() activateTab(tab) end)
+        btn.MouseEnter:Connect(function() if activeTab~=tab then tw(btn,{TextColor3=TXT}) end end)
+        btn.MouseLeave:Connect(function() if activeTab~=tab then tw(btn,{TextColor3=TXT_D}) end end)
+        if tabCount==1 then activateTab(tab) end
+        local Tab={}
+        function Tab:AddSection(sName, side)
+            return buildSection((side=="Right") and rS or lS, sName, true)
+        end
+        return Tab
+    end
+
+    function Window:Destroy()
+        sg:Destroy()
+    end
+
+    return Window
+end
+
+return Library
